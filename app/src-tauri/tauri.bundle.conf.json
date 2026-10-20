@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBuildCommand": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File ../packaging/build-msix.ps1"
+  },
+  "bundle": {
+    "resources": {
+      "../../target/release/lynk_shell.dll": "lynk_shell.dll",
+      "../../target/release/lynk_preview.dll": "lynk_preview.dll",
+      "../../target/Lynk.msix": "Lynk.msix"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
+  }
+}

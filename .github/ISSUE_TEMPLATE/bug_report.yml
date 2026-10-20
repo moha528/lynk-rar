@@ -1,0 +1,45 @@
+name: Signaler un bug
+description: Quelque chose ne marche pas comme prévu.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Que s'est-il passé ?
+      description: Ce que vous avez fait, ce que vous attendiez, ce qui s'est passé à la place.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. Clic droit sur une archive .7z
+        2. Lynk > Extraire ici
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: format
+    attributes:
+      label: Format d'archive concerné
+      placeholder: ZIP, 7z (chiffré ?), RAR, TAR.GZ, volumes .001…
+  - type: input
+    id: version
+    attributes:
+      label: Version de Lynk
+      description: Paramètres > À propos.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Version de Windows
+      placeholder: Windows 11 24H2 (26100)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Message d'erreur ou capture
+      description: Texte exact du message, ou capture d'écran.

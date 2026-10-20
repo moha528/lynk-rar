@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Package MSIX « sparse » : il ne contient que ce manifeste et des logos.
+  Les binaires restent là où ils sont (ExternalLocation), mais Lynk obtient
+  une identité de package, condition pour entrer dans le menu contextuel
+  principal de Windows 11 plutôt que dans « Afficher plus d'options ».
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap10 desktop2 desktop4 desktop5 com rescap">
+
+  <!-- Publisher doit être exactement le sujet du certificat de signature. -->
+  <Identity Name="Lynk" Publisher="CN=Lynk Dev" Version="0.1.0.0" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Lynk</DisplayName>
+    <PublisherDisplayName>Lynk</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+
+  <Resources>
+    <Resource Language="fr-fr" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+
+  <Applications>
+    <Application Id="Lynk" Executable="lynk-app.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <!-- AppListEntry="none" : pas de doublon dans le menu Démarrer, l'installeur s'en charge. -->
+      <uap:VisualElements
+        AppListEntry="none"
+        DisplayName="Lynk"
+        Description="Archives rapides, intégrées à l'Explorateur"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- Types d'archive : Lynk dans « Ouvrir avec » et aperçu dans le volet de l'Explorateur. -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="lynkarchive">
+            <uap:DisplayName>Archive</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.zip</uap:FileType>
+              <uap:FileType>.7z</uap:FileType>
+              <uap:FileType>.rar</uap:FileType>
+              <uap:FileType>.tar</uap:FileType>
+              <uap:FileType>.tgz</uap:FileType>
+              <uap:FileType>.gz</uap:FileType>
+              <uap:FileType>.bz2</uap:FileType>
+              <uap:FileType>.xz</uap:FileType>
+              <uap:FileType>.zst</uap:FileType>
+              <uap:FileType>.001</uap:FileType>
+            </uap:SupportedFileTypes>
+            <!-- Même CLSID que lynk_preview::CLSID_LYNK_PREVIEW. -->
+            <desktop2:DesktopPreviewHandler Clsid="A6EBEC9C-67DC-4F28-90DD-CFCBC066D350" />
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="Lynk" Clsid="556A874D-DD78-48D8-BCF4-C5CB821F6DD4" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="Lynk" Clsid="556A874D-DD78-48D8-BCF4-C5CB821F6DD4" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="Lynk, menu contextuel">
+              <!-- Même CLSID que lynk_shell::CLSID_LYNK. -->
+              <com:Class Id="556A874D-DD78-48D8-BCF4-C5CB821F6DD4" Path="lynk_shell.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+            <com:SurrogateServer DisplayName="Lynk, aperçu des archives">
+              <com:Class Id="A6EBEC9C-67DC-4F28-90DD-CFCBC066D350" Path="lynk_preview.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

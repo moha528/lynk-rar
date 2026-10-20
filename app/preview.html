@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- Aperçu de l'interface dans un navigateur, avec un faux côté Rust (src/dev/mock.ts).
+     Pour travailler le design sans lancer Tauri : `npx vite` puis /preview.html. -->
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lynk (aperçu)</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      html.no-mica body, body { background: #202020; }
+      @media (prefers-color-scheme: light) { body { background: #f3f3f3; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/dev/mock.ts"></script>
+  </body>
+</html>

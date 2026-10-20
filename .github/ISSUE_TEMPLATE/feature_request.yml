@@ -1,0 +1,20 @@
+name: Proposer une amélioration
+description: Une idée pour rendre Lynk plus pratique.
+labels: [amélioration]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Le besoin
+      description: Ce que vous cherchez à faire, et ce qui vous en empêche aujourd'hui.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: La solution imaginée
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Ce que font WinRAR, 7-Zip ou d'autres
+      description: Facultatif, mais utile pour comparer.
