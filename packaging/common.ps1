@@ -1,5 +1,17 @@
 ﻿# Fonctions partagées par install-shell.ps1 et build-msix.ps1 (à dot-sourcer).
 
+# Lancé depuis PowerShell 7 (npm, GitHub Actions), Windows PowerShell hérite de son
+# PSModulePath et charge alors des modules prévus pour PowerShell 7 : le lecteur
+# Cert: et Add-AppxPackage disparaissent. On revient à ses propres chemins.
+if ($PSVersionTable.PSEdition -eq "Desktop") {
+  $env:PSModulePath = @(
+    (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "WindowsPowerShell\Modules"),
+    (Join-Path $env:ProgramFiles "WindowsPowerShell\Modules"),
+    (Join-Path $PSHOME "Modules")
+  ) -join ";"
+  Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
+}
+
 $Script:Root = Split-Path -Parent $PSScriptRoot
 $Script:Publisher = "CN=Lynk Dev"
 
