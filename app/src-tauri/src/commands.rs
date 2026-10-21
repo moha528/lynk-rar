@@ -301,10 +301,28 @@ pub fn cancel(jobs: State<'_, Jobs>, job: u32) {
     jobs.cancel(job);
 }
 
+/// Nom proposé pour une nouvelle archive, à côté des sources ou dans `dir`, jamais un fichier existant.
 #[tauri::command]
-pub fn suggest_archive_path(sources: Vec<String>, format: Format) -> String {
+pub fn suggest_archive_path(sources: Vec<String>, format: Format, dir: Option<String>) -> String {
     let sources: Vec<PathBuf> = sources.iter().map(PathBuf::from).collect();
-    lynk_core::default_archive_path(&sources, format).to_string_lossy().into_owned()
+    let path = lynk_core::default_archive_path(&sources, format);
+    let Some(dir) = dir.map(PathBuf::from) else {
+        return path.to_string_lossy().into_owned();
+    };
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let ext = format!(".{}", format.extension());
+    // Le suffixe « (2) » posé ailleurs n'a pas de sens ici : on repart du nom de base.
+    let stem = name.strip_suffix(&ext).unwrap_or(&name);
+    let stem = match stem.rsplit_once(" (") {
+        Some((base, n)) if n.ends_with(')') && n[..n.len() - 1].bytes().all(|b| b.is_ascii_digit()) => base,
+        _ => stem,
+    };
+    (1u32..)
+        .map(|n| if n == 1 { dir.join(format!("{stem}{ext}")) } else { dir.join(format!("{stem} ({n}){ext}")) })
+        .find(|p| std::fs::symlink_metadata(p).is_err())
+        .unwrap_or_else(|| dir.join(name))
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn scratch_root() -> PathBuf {
@@ -330,22 +348,74 @@ pub fn clean_scratch() {
     }
 }
 
+/// Extrait des éléments de l'archive dans un dossier temporaire neuf et rend leurs
+/// chemins, dans l'ordre demandé. Chacun est extrait relativement à son propre
+/// dossier : tous arrivent au premier niveau, même issus d'une recherche.
+fn materialize(
+    archive: &Path,
+    items: &[String],
+    password: Option<String>,
+    progress: &dyn lynk_core::Progress,
+) -> lynk_core::Result<Vec<PathBuf>> {
+    let dir = scratch_dir();
+    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+    for item in items {
+        let parent = item.trim_matches('/').rsplit_once('/').map_or("", |(p, _)| p).to_owned();
+        groups.entry(parent).or_default().push(item.clone());
+    }
+    for (base, items) in groups {
+        let opts = ExtractOptions {
+            password: password.clone(),
+            overwrite: Overwrite::Replace,
+            selection: Some(Selection { base, items }),
+        };
+        lynk_core::extract(archive, &dir, &opts, progress)?;
+    }
+    Ok(items
+        .iter()
+        .filter_map(|i| lynk_core::safe_relative(i.trim_matches('/').rsplit('/').next().unwrap_or(i)))
+        .map(|rel| dir.join(rel))
+        .filter(|p| p.exists())
+        .collect())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaterializeRequest {
+    job: u32,
+    archive: String,
+    items: Vec<String>,
+    password: Option<String>,
+}
+
+/// Copie temporaire d'éléments de l'archive, avec progression : archive imbriquée
+/// à ouvrir, fichiers à prévisualiser ou dont calculer les sommes de contrôle.
+#[tauri::command]
+pub async fn materialize_entries(
+    app: AppHandle,
+    jobs: State<'_, Jobs>,
+    req: MaterializeRequest,
+) -> CmdResult<Vec<String>> {
+    let job = req.job;
+    let cancel = jobs.start(job);
+    let result = blocking(move || {
+        let progress = JobProgress::new(app, job, cancel);
+        let files = materialize(Path::new(&req.archive), &req.items, req.password, &progress)?;
+        progress.flush();
+        Ok(files.into_iter().map(|p| p.to_string_lossy().into_owned()).collect())
+    })
+    .await;
+    jobs.finish(job);
+    result
+}
+
 /// Ouvre un fichier de l'archive avec son application par défaut,
 /// via une copie temporaire (comme un double-clic dans WinRAR).
 #[tauri::command]
 pub async fn open_entry(archive: String, entry: String, password: Option<String>) -> CmdResult<()> {
     let file = blocking(move || {
-        let dir = scratch_dir();
-        let base = entry.rsplit_once('/').map_or("", |(parent, _)| parent).to_owned();
-        let name = entry.rsplit('/').next().unwrap_or(&entry).to_owned();
-        let opts = ExtractOptions {
-            password,
-            overwrite: Overwrite::Replace,
-            selection: Some(Selection { base, items: vec![entry] }),
-        };
-        lynk_core::extract(Path::new(&archive), &dir, &opts, &lynk_core::NoProgress)?;
-        let file = lynk_core::safe_relative(&name).map(|rel| dir.join(rel));
-        file.ok_or(lynk_core::Error::Unsupported("nom de fichier invalide"))
+        let files = materialize(Path::new(&archive), &[entry], password, &lynk_core::NoProgress)?;
+        files.into_iter().next().ok_or(lynk_core::Error::Unsupported("nom de fichier invalide"))
     })
     .await?;
     tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| CmdError::other(e.to_string()))
@@ -422,34 +492,7 @@ pub async fn drag_out(
     items: Vec<String>,
     password: Option<String>,
 ) -> CmdResult<bool> {
-    let dir = scratch_dir();
-    let names: Vec<String> =
-        items.iter().map(|i| i.trim_matches('/').rsplit('/').next().unwrap_or(i).to_owned()).collect();
-    // Chaque élément est extrait relativement à son propre dossier : tous arrivent
-    // au premier niveau du dossier temporaire, même issus d'une recherche.
-    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
-    for item in items {
-        let parent = item.trim_matches('/').rsplit_once('/').map_or("", |(p, _)| p).to_owned();
-        groups.entry(parent).or_default().push(item);
-    }
-    let target = dir.clone();
-    blocking(move || {
-        for (base, items) in groups {
-            let opts = ExtractOptions {
-                password: password.clone(),
-                overwrite: Overwrite::Replace,
-                selection: Some(Selection { base, items }),
-            };
-            lynk_core::extract(Path::new(&archive), &target, &opts, &lynk_core::NoProgress)?;
-        }
-        Ok(())
-    })
-    .await?;
-    let files: Vec<PathBuf> = names
-        .iter()
-        .filter_map(|n| lynk_core::safe_relative(n).map(|rel| dir.join(rel)))
-        .filter(|p| p.exists())
-        .collect();
+    let files = blocking(move || materialize(Path::new(&archive), &items, password, &lynk_core::NoProgress)).await?;
     drag_native(window, files).await
 }
 

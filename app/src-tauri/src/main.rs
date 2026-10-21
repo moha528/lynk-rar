@@ -3,6 +3,7 @@
 
 mod commands;
 mod fs;
+mod inspect;
 mod jobs;
 mod launch;
 mod recent;
@@ -53,6 +54,9 @@ fn main() {
             commands::test_archive,
             commands::convert,
             commands::properties,
+            commands::materialize_entries,
+            inspect::peek,
+            inspect::hash_files,
             commands::notify,
             recent::recent_list,
             recent::recent_add,

@@ -25,6 +25,7 @@ Lynk remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fi
 - **Extraction intelligente** : un seul élément à la racine est déposé à côté de l'archive, sinon tout va dans un dossier à son nom. Il est aussi possible d'extraire seulement une sélection.
 - **Modification d'archives** : ajout et suppression de fichiers. En ZIP, les entrées conservées sont recopiées sans recompression.
 - **Conversion** d'un format à l'autre (RAR → 7z, ZIP → TAR.ZST…), l'original étant conservé.
+- **Archives imbriquées** ouvertes sur place, **aperçu rapide** (Espace) des images et des textes, **sommes de contrôle** CRC32 et SHA-256.
 - **Volumes** `.001`, `.002`… au format de 7-Zip, test d'intégrité, propriétés détaillées (Alt+Entrée), archives récentes.
 - **Intégration Windows** :
   - menu contextuel principal de Windows 11, via `IExplorerCommand` et un package MSIX « sparse » ;

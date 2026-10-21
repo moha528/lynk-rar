@@ -49,8 +49,32 @@ const archive = {
     "Python and Hacking.pdf",
     "techniques-de-hacking-de-jon-erikson.pdf",
     "Wifi Hacking - Le Guide Complet.pdf",
-  ].map((p, i) => ({ path: p, size: 30_000_000 + i * 9_000_000, packedSize: 28_000_000 + i * 8_000_000, isDir: false, modified: now - 86400 * (400 + i * 30), encrypted: false })),
+  ].map((p, i) => ({ path: p, size: 30_000_000 + i * 9_000_000, packedSize: 28_000_000 + i * 8_000_000, isDir: false, modified: now - 86400 * (400 + i * 30), encrypted: false }))
+    .concat([
+      { path: "Outils.zip", size: 2_400_000, packedSize: 2_390_000, isDir: false, modified: now - 86400 * 12, encrypted: false },
+      { path: "lisez-moi.txt", size: 1_800, packedSize: 900, isDir: false, modified: now - 86400 * 12, encrypted: false },
+    ]),
 };
+
+const nested = {
+  path: "C:\\Users\\demo\\AppData\\Local\\Temp\\Lynk\\42-0\\Outils.zip",
+  name: "Outils.zip",
+  format: "zip",
+  formatLabel: "ZIP",
+  size: 2_390_000,
+  volumes: 1,
+  entries: ["nmap/nmap.exe", "nmap/README.md", "wireshark-portable.exe", "logo.png"].map((p, i) => ({
+    path: p,
+    size: 400_000 + i * 200_000,
+    packedSize: 380_000 + i * 190_000,
+    isDir: false,
+    modified: now - 86400 * 30,
+    encrypted: false,
+  })),
+};
+
+const temp = "C:\\Users\\demo\\AppData\\Local\\Temp\\Lynk\\42-0";
+const logo = "data:image/svg+xml;base64," + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#4F46E5"/><rect x="18" y="18" width="28" height="28" rx="6" fill="#C7C3FF"/></svg>');
 
 mockWindows("main");
 mockIPC(
@@ -88,7 +112,22 @@ mockIPC(
       case "path_kind":
         return String(a.path).match(/\.(rar|zip|7z)$/i) ? "file" : "dir";
       case "open_archive":
-        return archive;
+        return String(a.path).endsWith("Outils.zip") ? nested : archive;
+      case "materialize_entries":
+        return ((a.req as { items: string[] }).items).map((i) => `${temp}\\${i.split("/").pop()}`);
+      case "peek": {
+        const p = String(a.path);
+        if (/\.(png|svg)$/i.test(p)) return { kind: "image", url: logo };
+        if (/\.(txt|md)$/i.test(p)) return { kind: "text", text: "Lisez-moi\n=========\n\nCette archive contient les guides de la formation.\nBonne lecture !\n", truncated: false };
+        return { kind: "other" };
+      }
+      case "hash_files":
+        return ((a.req as { paths: string[] }).paths).map((p, i) => ({
+          path: p,
+          size: 1_800 + i * 1000,
+          crc32: (0x352441c2 + i).toString(16),
+          sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".slice(0, 60) + String(1000 + i),
+        }));
       case "settings_load":
         return null;
       case "plugin:app|version":

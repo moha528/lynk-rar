@@ -1345,6 +1345,151 @@ body.dragging .drop-hint {
   width: 96px;
 }
 
+/* Aperçu rapide */
+
+.peek-dialog {
+  width: min(900px, calc(100vw - 32px));
+  height: min(680px, calc(100vh - 32px));
+}
+
+.peek-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.peek-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px 24px;
+}
+
+.peek-title {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.peek-title h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.peek-body {
+  display: grid;
+  min-height: 0;
+  margin: 0 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--stroke);
+  background: var(--layer);
+  overflow: hidden;
+}
+
+.peek-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* Damier discret : la transparence d'une image se voit. */
+  background: repeating-conic-gradient(var(--layer-alt) 0 25%, transparent 0 50%) 50% / 16px 16px;
+}
+
+.peek-text-wrap {
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+.peek-text {
+  margin: 0;
+  font: 12px/18px "Cascadia Mono", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.peek-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+}
+
+.peek-empty .ficon {
+  width: 48px;
+  height: 48px;
+}
+
+.peek-dialog .dialog-actions {
+  margin-top: 16px;
+  padding: 12px 16px;
+}
+
+.peek-dialog .dialog-actions .btn:not(.accent) {
+  min-width: 0;
+}
+
+/* Sommes de contrôle */
+
+.hash-dialog {
+  width: min(860px, calc(100vw - 32px));
+}
+
+.hash-list {
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+}
+
+.hash-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 72px 76px minmax(0, 2.6fr);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+}
+
+.hash-row + .hash-row {
+  border-top: 1px solid var(--stroke);
+}
+
+.hash-row code {
+  font: 12px/18px "Cascadia Mono", Consolas, monospace;
+  user-select: all;
+}
+
+.hash-sha {
+  overflow-wrap: anywhere;
+}
+
+.hash-row.match {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.ok-text {
+  color: var(--success);
+}
+
+.err-text {
+  color: var(--danger);
+}
+
+@media (max-width: 620px) {
+  .hash-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hash-sha {
+    grid-column: 1 / -1;
+  }
+
+  .hash-head {
+    display: none;
+  }
+}
+
 .props-dialog {
   width: min(560px, calc(100vw - 32px));
 }

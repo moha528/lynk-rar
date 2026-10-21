@@ -13,6 +13,8 @@ import {
   ARCHIVE_RE,
   convert,
   create,
+  hashFiles,
+  materialize,
   errorMessage,
   extract,
   isCmdError,
@@ -24,6 +26,7 @@ import {
   type ExtractReport,
   type FormatId,
   type FormatInfo,
+  type FileHash,
   type FsEntry,
   type Places,
   type RecentItem,
@@ -42,11 +45,15 @@ import { backgroundCheck, type Release } from "./updates";
 
 // ——— Modèle ———
 
-type Loc =
-  | { kind: "home" }
-  | { kind: "fs"; path: string }
-  | { kind: "archive"; path: string; inner: string }
-  | { kind: "settings" };
+interface ArchiveLoc {
+  kind: "archive";
+  path: string;
+  inner: string;
+  /** Archive ouverte depuis une autre : `path` est une copie temporaire de `entry`. */
+  via?: { outer: ArchiveLoc; entry: string };
+}
+
+type Loc = { kind: "home" } | { kind: "fs"; path: string } | ArchiveLoc | { kind: "settings" };
 
 interface Opened {
   info: ArchiveInfo;
@@ -92,6 +99,10 @@ const state = {
   /** Pendant un glisser sortant, nos propres fichiers repassent par la fenêtre : on les ignore. */
   draggingOut: false,
   sidebarOpen: false,
+  /** Mots de passe déjà saisis, par archive : revenir à une archive ne les redemande pas. */
+  passwords: new Map<string, string>(),
+  /** Copies temporaires déjà faites (archives imbriquées, aperçus), par archive puis entrée. */
+  copies: new Map<string, string>(),
 };
 
 /** Types dont chaque fichier a sa propre icône. */
@@ -198,8 +209,29 @@ function sameLoc(a: Loc, b: Loc): boolean {
 
 function locPath(loc: Loc): string {
   if (loc.kind === "fs") return loc.path;
-  if (loc.kind === "archive") return loc.inner ? `${loc.path}\\${loc.inner.replaceAll("/", "\\")}` : loc.path;
+  if (loc.kind === "archive") {
+    // Archive imbriquée : le chemin lisible passe par l'archive qui la contient.
+    const base = loc.via ? locPath({ ...loc.via.outer, inner: loc.via.entry }) : loc.path;
+    return loc.inner ? `${base}\\${loc.inner.replaceAll("/", "\\")}` : base;
+  }
   return "";
+}
+
+/** L'archive du disque au bout d'une chaîne d'archives imbriquées. */
+function diskArchive(loc: ArchiveLoc): ArchiveLoc {
+  return loc.via ? diskArchive(loc.via.outer) : loc;
+}
+
+/** Dossier « à côté de l'archive » : pour une archive imbriquée, celui de l'archive du disque. */
+function besideArchive(path: string): string {
+  const loc = state.loc;
+  if (loc.kind === "archive" && loc.via && loc.path === path) return fmt.parentDir(diskArchive(loc).path);
+  return fmt.parentDir(path);
+}
+
+function parentEntry(entry: string): string {
+  const i = entry.lastIndexOf("/");
+  return i < 0 ? "" : entry.slice(0, i);
 }
 
 function parentFs(path: string): string | null {
@@ -257,7 +289,7 @@ async function go(loc: Loc, opts: { push?: boolean; select?: string[] } = {}): P
       }
     }
   } else if (loc.kind === "archive") {
-    if (!(await ensureArchive(loc.path))) return false;
+    if (!(await ensureArchive(loc.path, !loc.via))) return false;
     if (!find(state.opened!.root, loc.inner)) loc = { ...loc, inner: "" };
   }
   if (opts.push !== false && !sameLoc(loc, state.loc)) {
@@ -265,7 +297,7 @@ async function go(loc: Loc, opts: { push?: boolean; select?: string[] } = {}): P
     state.forward = [];
   }
   state.loc = loc;
-  if (loc.kind === "fs" || loc.kind === "archive") updateSettings({ lastPath: locPath(loc) });
+  if (loc.kind === "fs" || loc.kind === "archive") updateSettings({ lastPath: locPath(loc.kind === "archive" ? diskArchive(loc) : loc) });
   ui.search.value = "";
   state.filter = "";
   state.sidebarOpen = false;
@@ -294,6 +326,7 @@ async function goForward(): Promise<void> {
 function selectionAfterReturn(from: Loc, to: Loc): string[] {
   if (from.kind === "fs" && to.kind === "fs") return [from.path];
   if (from.kind === "archive" && to.kind === "fs") return [from.path];
+  if (from.kind === "archive" && from.via && to.kind === "archive" && to.path === from.via.outer.path) return [from.via.entry];
   if (from.kind === "archive" && to.kind === "archive" && from.path === to.path) return [from.inner.split("/").slice(0, (to.inner ? to.inner.split("/").length : 0) + 1).join("/")];
   return [];
 }
@@ -307,6 +340,8 @@ async function goUp(): Promise<void> {
     if (loc.inner) {
       const i = loc.inner.lastIndexOf("/");
       await go({ ...loc, inner: i < 0 ? "" : loc.inner.slice(0, i) }, { select: [loc.inner] });
+    } else if (loc.via) {
+      await go({ ...loc.via.outer, inner: parentEntry(loc.via.entry) }, { select: [loc.via.entry] });
     } else {
       const parent = parentFs(loc.path);
       if (parent) await go({ kind: "fs", path: parent }, { select: [loc.path] });
@@ -325,13 +360,19 @@ async function refresh(): Promise<void> {
 
 // ——— Archives ———
 
-async function ensureArchive(path: string): Promise<boolean> {
+/** Charge l'archive. `recent` : la noter dans les archives récentes (pas une copie temporaire). */
+async function ensureArchive(path: string, recent = true): Promise<boolean> {
   if (state.opened?.info.path === path) return true;
+  if (state.opened?.password) state.passwords.set(state.opened.info.path, state.opened.password);
+  const known = state.passwords.get(path) ?? null;
   let password: string | null = null;
   for (let attempt = 0; ; attempt++) {
     try {
       const info = await api.open(path, password);
-      state.opened = { info, root: buildTree(info.entries), password, namesEncrypted: password !== null };
+      // Listing sans mot de passe d'abord : s'il en faut un, les noms sont chiffrés.
+      state.opened = { info, root: buildTree(info.entries), password: password ?? known, namesEncrypted: password !== null };
+      if (password !== null) state.passwords.set(path, password);
+      if (!recent) return true;
       void api.recentAdd(path);
       state.recent = [
         { path, name: info.name, size: info.size, opened: Date.now() / 1000 },
@@ -340,7 +381,8 @@ async function ensureArchive(path: string): Promise<boolean> {
       return true;
     } catch (e) {
       if (isCmdError(e) && e.kind === "password") {
-        password = await askPassword(fmt.baseName(path), attempt > 0);
+        const retry: boolean = password !== null && password !== known;
+        password = password === null && known !== null ? known : await askPassword(fmt.baseName(path), retry || attempt > 1);
         if (password === null) return false;
         continue;
       }
@@ -355,10 +397,13 @@ async function reloadArchive(): Promise<void> {
   if (!opened) return;
   const info = await api.open(opened.info.path, opened.password);
   state.opened = { ...opened, info, root: buildTree(info.entries) };
+  // Le contenu a pu changer : les copies temporaires ne lui correspondent plus.
+  for (const key of state.copies.keys()) if (key.startsWith(`${opened.info.path}\n`)) state.copies.delete(key);
 }
 
 function canModify(): boolean {
-  return state.loc.kind === "archive" && state.opened !== null && state.opened.info.format !== "rar" && !/\.\d{3}$/.test(state.opened.info.path);
+  const loc = state.loc;
+  return loc.kind === "archive" && !loc.via && state.opened !== null && state.opened.info.format !== "rar" && !/\.\d{3}$/.test(state.opened.info.path);
 }
 
 async function pickArchive(): Promise<void> {
@@ -469,6 +514,11 @@ function makeList(view: "fs" | "archive"): ListView<Row> {
           void goUp();
           return true;
         }
+        if (e.key === " " && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          void quickLook();
+          return true;
+        }
         if (e.key === "Delete" && view === "archive") {
           e.preventDefault();
           void removeSelected();
@@ -515,7 +565,7 @@ function archiveRows(): Row[] {
     name: n.name,
     label,
     isDir: n.isDir,
-    isArchive: false,
+    isArchive: !n.isDir && ARCHIVE_RE.test(n.name),
     size: n.size,
     packed: n.packed,
     modified: n.modified,
@@ -573,6 +623,7 @@ async function activate(r: Row): Promise<void> {
     else await api.openPath(r.key).catch((e) => alertError("Impossible d'ouvrir", errorMessage(e)));
   } else if (loc.kind === "archive") {
     if (r.isDir) await go({ ...loc, inner: r.key });
+    else if (ARCHIVE_RE.test(r.name)) await openNested(r.key);
     else await openEntry(r.key);
   }
 }
@@ -636,11 +687,17 @@ interface Crumb {
   img?: string | null;
 }
 
-function crumbs(): Crumb[] {
-  const loc = state.loc;
+function crumbs(loc: Loc = state.loc): Crumb[] {
   const home: Crumb = { label: "Accueil", loc: { kind: "home" }, glyph: "" };
   if (loc.kind === "home") return [home];
   if (loc.kind === "settings") return [home, { label: "Paramètres", loc, glyph: "" }];
+  if (loc.kind === "archive" && loc.via) {
+    // Archive imbriquée : le chemin de l'archive qui la contient, puis elle-même.
+    const name = loc.via.entry.split("/").pop() ?? loc.via.entry;
+    const out = crumbs({ ...loc.via.outer, inner: parentEntry(loc.via.entry) });
+    out.push({ label: name, loc: { ...loc, inner: "" }, glyph: Glyph.archive, img: state.icons.get(ext(name)) });
+    return out.concat(innerCrumbs(loc));
+  }
   const fsPath = loc.path;
   const out: Crumb[] = [home];
   // Sous un dossier connu (Téléchargements…) : on part de lui, comme l'Explorateur.
@@ -667,11 +724,12 @@ function crumbs(): Crumb[] {
       img: isArchive ? state.icons.get(ext(part)) : undefined,
     });
   });
-  if (loc.kind === "archive" && loc.inner) {
-    const parts = loc.inner.split("/");
-    parts.forEach((p, i) => out.push({ label: p, loc: { kind: "archive", path: loc.path, inner: parts.slice(0, i + 1).join("/") } }));
-  }
-  return out;
+  return loc.kind === "archive" ? out.concat(innerCrumbs(loc)) : out;
+}
+
+function innerCrumbs(loc: ArchiveLoc): Crumb[] {
+  const parts = loc.inner.split("/").filter(Boolean);
+  return parts.map((p, i) => ({ label: p, loc: { ...loc, inner: parts.slice(0, i + 1).join("/") } }));
 }
 
 function renderAddress(): void {
@@ -910,7 +968,7 @@ function renderToolbar(): void {
     ];
   } else if (loc.kind === "archive") {
     const editable = canModify();
-    const readOnly = editable ? undefined : "Archive en lecture seule (RAR ou volumes)";
+    const readOnly = editable ? undefined : loc.via ? "Archive dans une archive : en lecture seule" : "Archive en lecture seule (RAR ou volumes)";
     items = [
       { id: "extract", label: "Extraire", glyph: Glyph.extract, accent: true, priority: 10, menu: () => extractItemsArchive() },
       { id: "add", label: "Ajouter", glyph: Glyph.add, disabled: !editable, priority: 8, title: readOnly ?? "Ajouter des fichiers dans ce dossier de l'archive", action: () => void pickAndAdd() },
@@ -919,7 +977,7 @@ function renderToolbar(): void {
       { id: "convert", label: "Convertir", glyph: Glyph.convert, priority: 5, title: "Convertir vers un autre format", action: () => void convertDialog([loc.path]) },
       { id: "props", label: "Propriétés", glyph: Glyph.info, priority: 4, title: "Propriétés de l'archive (Alt+Entrée)", action: () => void archiveProperties() },
       "sep",
-      { id: "reveal", label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, priority: 3, action: () => void api.reveal(loc.path) },
+      { id: "reveal", label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, priority: 3, action: () => void api.reveal(diskArchive(loc).path) },
       { id: "new", label: "Nouvelle archive", glyph: Glyph.archive, priority: 1, action: () => void pickAndCompress() },
       "sep",
       settingsTool,
@@ -991,6 +1049,7 @@ function fsMenu(rows: Row[]): (MenuItem | "-")[] {
   } else if (one) {
     items.push({ label: "Ouvrir", glyph: one.isDir ? Glyph.folder : Glyph.open, hint: "Entrée", action: () => void activate(one) });
   }
+  if (one && !one.isDir) items.push({ label: "Aperçu", glyph: Glyph.preview, hint: "Espace", action: () => void quickLook() });
   if (allArchives) {
     items.push("-", ...extractItemsFs(paths), { label: "Convertir…", glyph: Glyph.convert, action: () => void convertDialog(paths) });
   }
@@ -1000,6 +1059,7 @@ function fsMenu(rows: Row[]): (MenuItem | "-")[] {
     { label: `Ajouter à « ${base}.7z »`, glyph: Glyph.archive, action: () => void quickCompress(paths, "seven-z") },
     { label: "Ajouter à une archive…", glyph: Glyph.add, action: () => void compressDialog(paths, loc.path) },
     "-",
+    { label: "Sommes de contrôle", glyph: Glyph.hash, disabled: rows.every((r) => r.isDir), action: () => void showChecksums(rows) },
     { label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, action: () => void api.reveal(paths[0]) },
     { label: rows.length > 1 ? "Copier les chemins" : "Copier le chemin", glyph: "", action: () => void copyPaths(paths) },
     "-",
@@ -1021,7 +1081,9 @@ function archiveMenu(rows: Row[]): (MenuItem | "-")[] {
   const one = rows.length === 1 ? rows[0] : null;
   return [
     one ? (one.isDir ? { label: "Ouvrir", glyph: Glyph.folder, action: () => void activate(one) } : { label: "Ouvrir", glyph: Glyph.open, hint: "Entrée", action: () => void activate(one) }) : "-",
+    one && !one.isDir ? { label: "Aperçu", glyph: Glyph.preview, hint: "Espace", action: () => void quickLook() } : "-",
     { label: "Extraire vers…", glyph: Glyph.extract, action: () => void runExtract("exact", true) },
+    { label: "Sommes de contrôle", glyph: Glyph.hash, disabled: rows.every((r) => r.isDir), action: () => void showChecksums(rows) },
     "-",
     { label: "Supprimer de l'archive", glyph: Glyph.delete, hint: "Suppr", disabled: !canModify(), action: () => void removeSelected() },
     "-",
@@ -1084,11 +1146,16 @@ async function runExtract(mode: ExtractMode, onlySelection: boolean): Promise<vo
   const opened = state.opened;
   const loc = state.loc;
   if (!opened || loc.kind !== "archive") return;
+  const beside = besideArchive(opened.info.path);
   let dest: string | null = null;
   if (mode === "into" || mode === "exact") {
-    const picked = await open({ directory: true, title: "Extraire vers", defaultPath: fmt.parentDir(opened.info.path) });
+    const picked = await open({ directory: true, title: "Extraire vers", defaultPath: beside });
     if (typeof picked !== "string") return;
     dest = picked;
+  } else if (loc.via) {
+    // Archive imbriquée : « ici », c'est à côté de l'archive du disque, pas dans la copie temporaire.
+    dest = beside;
+    if (mode === "here") mode = "into";
   }
   const items = selectedRows().map((r) => r.key);
   const selection = onlySelection && items.length ? { base: state.filter ? "" : loc.inner, items } : null;
@@ -1116,6 +1183,60 @@ async function openEntry(entry: string): Promise<void> {
     }
     await alertError("Impossible d'ouvrir le fichier", errorMessage(e));
   }
+}
+
+/**
+ * Lance `run` avec le mot de passe connu, et le redemande tant qu'il manque ou est
+ * faux. `null` si l'utilisateur abandonne, annule, ou après une erreur déjà affichée.
+ */
+async function withPassword<T>(archive: string, password: string | null, failTitle: string, run: (pw: string | null) => Promise<T>): Promise<T | null> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const result = await run(password);
+      if (state.opened?.info.path === archive) state.opened.password = password;
+      if (password !== null) state.passwords.set(archive, password);
+      return result;
+    } catch (e) {
+      if (isCmdError(e) && e.kind === "cancelled") return null;
+      if (isCmdError(e) && e.kind === "password") {
+        password = await askPassword(fmt.baseName(archive), attempt > 0 || password !== null);
+        if (password === null) return null;
+        continue;
+      }
+      await alertError(failTitle, errorMessage(e));
+      return null;
+    }
+  }
+}
+
+/** Copies temporaires d'entrées de l'archive ouverte, réutilisées tant qu'elles existent. */
+async function copiesOf(entries: string[], title: string): Promise<string[] | null> {
+  const opened = state.opened;
+  if (!opened) return null;
+  const id = (e: string) => `${opened.info.path}\n${e}`;
+  const missing = entries.filter((e) => !state.copies.has(id(e)));
+  if (missing.length) {
+    const files = await withPassword(opened.info.path, opened.password, "Extraction impossible", (password) =>
+      withProgress(title, (onProgress) => materialize({ archive: opened.info.path, items: missing, password }, onProgress)),
+    );
+    if (!files) return null;
+    // L'ordre est conservé, mais une entrée au nom invalide manque : on associe par nom.
+    for (const e of missing) {
+      const name = e.split("/").pop() ?? e;
+      const file = files.find((f) => fmt.baseName(f) === name);
+      if (file) state.copies.set(id(e), file);
+    }
+  }
+  return entries.map((e) => state.copies.get(id(e))).filter((f): f is string => f !== undefined);
+}
+
+/** Une archive dans l'archive s'ouvre sur place, comme un dossier (en lecture seule). */
+async function openNested(entry: string): Promise<void> {
+  const loc = state.loc;
+  if (loc.kind !== "archive") return;
+  const [file] = (await copiesOf([entry], `Ouverture de ${entry.split("/").pop()}`)) ?? [];
+  if (!file) return;
+  await go({ kind: "archive", path: file, inner: "", via: { outer: { ...loc, inner: parentEntry(entry) }, entry } });
 }
 
 async function runTest(archive: string, password: string | null): Promise<void> {
@@ -1232,25 +1353,45 @@ function formatExt(format: FormatId): string {
 /** « Ajouter à « x.zip » » : création directe avec les réglages par défaut. */
 async function quickCompress(sources: string[], format: FormatId): Promise<void> {
   const dest = await api.suggestArchivePath(sources, format);
-  await runCreate(sources, { dest, format, level: settings().defaultLevel, password: null, volumeSize: null });
+  await runCreate([{ sources, dest: async () => dest }], { format, level: settings().defaultLevel, password: null, volumeSize: null });
 }
 
-async function runCreate(
-  sources: string[],
-  req: { dest: string; format: FormatId; level: number; password: string | null; volumeSize: number | null },
-): Promise<void> {
-  try {
-    const created = await withProgress(`Création de ${fmt.baseName(req.dest)}`, (onProgress) => create({ sources, ...req }, onProgress));
-    const first = created.paths[0];
-    const what = created.paths.length > 1 ? `${fmt.baseName(req.dest)} créée en ${created.paths.length} volumes` : `${fmt.baseName(first)} créée`;
-    toast(`${what} (${fmt.size(created.size)})`, { label: "Afficher", run: () => void api.reveal(first) });
-    // Si l'archive arrive dans le dossier affiché, on l'y montre sélectionnée.
-    if (state.loc.kind === "fs" && fmt.parentDir(first).toLowerCase() === state.loc.path.replace(/\\$/, "").toLowerCase()) {
-      await go(state.loc, { push: false, select: [first] });
+interface CreateOpts {
+  format: FormatId;
+  level: number;
+  password: string | null;
+  volumeSize: number | null;
+}
+
+/**
+ * Crée une ou plusieurs archives à la suite, puis les annonce en une fois. Le nom de
+ * chacune est choisi juste avant sa création : deux sources homonymes (`a.txt`,
+ * `a.pdf`) donnent `a.zip` puis `a (2).zip`.
+ */
+async function runCreate(batch: { sources: string[]; dest: () => Promise<string> }[], opts: CreateOpts): Promise<void> {
+  const made: string[] = [];
+  let size = 0;
+  let volumes = 0;
+  for (const item of batch) {
+    const dest = await item.dest();
+    try {
+      const created = await withProgress(`Création de ${fmt.baseName(dest)}`, (onProgress) => create({ sources: item.sources, dest, ...opts }, onProgress));
+      made.push(created.paths[0]);
+      size += created.size;
+      volumes = created.paths.length;
+    } catch (e) {
+      if (!(isCmdError(e) && e.kind === "cancelled")) await alertError("Échec de la création", errorMessage(e));
+      break;
     }
-  } catch (e) {
-    if (isCmdError(e) && e.kind === "cancelled") return;
-    await alertError("Échec de la création", errorMessage(e));
+  }
+  if (!made.length) return;
+  const first = made[0];
+  const what =
+    made.length > 1 ? `${made.length} archives créées` : volumes > 1 ? `${fmt.baseName(first).replace(/\.\d{3}$/, "")} créée en ${volumes} volumes` : `${fmt.baseName(first)} créée`;
+  toast(`${what} (${fmt.size(size)})`, { label: "Afficher", run: () => void api.reveal(made[made.length - 1]) });
+  // Si les archives arrivent dans le dossier affiché, on les y montre sélectionnées.
+  if (state.loc.kind === "fs" && fmt.parentDir(first).toLowerCase() === state.loc.path.replace(/\\$/, "").toLowerCase()) {
+    await go(state.loc, { push: false, select: made });
   }
 }
 
@@ -1259,10 +1400,7 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
   const s = settings();
   let format: FormatId = creatable.some((f) => f.id === s.defaultFormat) ? s.defaultFormat : "zip";
   let destEdited = false;
-  const suggest = async (f: FormatId) => {
-    const path = await api.suggestArchivePath(sources, f);
-    return targetDir ? `${targetDir.replace(/\\$/, "")}\\${fmt.baseName(path)}` : path;
-  };
+  const suggest = (f: FormatId, from = sources) => api.suggestArchivePath(from, f, targetDir ?? null);
 
   const dest = h("input", { class: "field grow", value: await suggest(format) });
   dest.addEventListener("input", () => (destEdited = true));
@@ -1316,6 +1454,13 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
   const volumeSize = (): number | null =>
     volumeSel.value === "custom" ? Math.max(1, Number(volumeCustom.value) || 0) * MiB : Number(volumeSel.value) || null;
 
+  // Plusieurs éléments : une archive commune, ou une par élément (à son nom).
+  const each = h("input", { type: "checkbox" });
+  each.addEventListener("change", () => {
+    dest.disabled = browse.disabled = each.checked;
+  });
+  const eachRow = sources.length > 1 ? h("label", { class: "check" }, each, h("span", {}, "Une archive par élément, chacune à son nom")) : null;
+
   const label = sources.length === 1 ? fmt.baseName(sources[0]) : `${sources.length} éléments`;
   const ok = await modal<boolean>((close) => ({
     title: "Nouvelle archive",
@@ -1326,6 +1471,8 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
       h("p", { class: "muted" }, icon(Glyph.file), ` ${label}`),
       h("label", {}, "Archive"),
       h("div", { class: "row" }, dest, browse),
+      eachRow ? h("span", {}) : null,
+      eachRow,
       h("label", {}, "Format"),
       formatSel,
       h("label", {}, "Compression"),
@@ -1338,13 +1485,11 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
     actions: [button("Créer", { variant: "accent", onclick: () => close(true) }), button("Annuler", { variant: "standard", onclick: () => close(false) })],
   }), false);
   if (!ok) return;
-  await runCreate(sources, {
-    dest: dest.value,
-    format,
-    level: level.value(),
-    password: password.disabled ? null : password.value || null,
-    volumeSize: volumeSize(),
-  });
+  const opts = { format, level: level.value(), password: password.disabled ? null : password.value || null, volumeSize: volumeSize() };
+  const batch = each.checked
+    ? sources.map((src) => ({ sources: [src], dest: () => suggest(format, [src]) }))
+    : [{ sources, dest: async () => dest.value }];
+  await runCreate(batch, opts);
 }
 
 function levelControl(initial: number): { el: HTMLElement; value: () => number } {
@@ -1373,7 +1518,7 @@ async function convertDialog(archives: string[]): Promise<void> {
   const preferred = settings().defaultFormat;
   let format: FormatId = preferred !== source && creatable.some((f) => f.id === preferred) ? preferred : source === "seven-z" ? "zip" : "seven-z";
   let destEdited = false;
-  const suggest = (f: FormatId) => api.suggestArchivePath([one!], f);
+  const suggest = (f: FormatId) => api.suggestArchivePath([one!], f, besideArchive(one!));
 
   const formatSel = h("select", { class: "field" }, ...creatable.map((f) => h("option", { value: f.id, selected: f.id === format }, f.label)));
   const dest = h("input", { class: "field grow", value: one ? await suggest(format) : "" });
@@ -1433,8 +1578,8 @@ async function convertDialog(archives: string[]): Promise<void> {
   const made: string[] = [];
   let total = 0;
   for (const archive of archives) {
-    const target = one ? dest.value : await api.suggestArchivePath([archive], format);
-    const known = state.opened?.info.path === archive ? state.opened.password : null;
+    const target = one ? dest.value : await api.suggestArchivePath([archive], format, besideArchive(archive));
+    const known = state.opened?.info.path === archive ? state.opened.password : (state.passwords.get(archive) ?? null);
     const created = await convertWithRetry(archive, known, { ...req, dest: target });
     if (!created) break;
     made.push(created.paths[0]);
@@ -1456,22 +1601,9 @@ async function convertWithRetry(
   password: string | null,
   req: { dest: string; format: FormatId; level: number; newPassword: string | null; volumeSize: number | null },
 ): Promise<Created | null> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const created = await withProgress(`Conversion de ${fmt.baseName(archive)}`, (onProgress) => convert({ archive, password, ...req }, onProgress));
-      if (state.opened?.info.path === archive) state.opened.password = password;
-      return created;
-    } catch (e) {
-      if (isCmdError(e) && e.kind === "cancelled") return null;
-      if (isCmdError(e) && e.kind === "password") {
-        password = await askPassword(fmt.baseName(archive), attempt > 0 || password !== null);
-        if (password === null) return null;
-        continue;
-      }
-      await alertError("Échec de la conversion", errorMessage(e));
-      return null;
-    }
-  }
+  return withPassword(archive, password, "Échec de la conversion", (pw) =>
+    withProgress(`Conversion de ${fmt.baseName(archive)}`, (onProgress) => convert({ archive, password: pw, ...req }, onProgress)),
+  );
 }
 
 // ——— Propriétés ———
@@ -1490,6 +1622,7 @@ async function archiveProperties(): Promise<void> {
   const opened = state.opened;
   if (!opened || state.loc.kind !== "archive") return;
   const { info, root } = opened;
+  const loc = state.loc as ArchiveLoc;
   let files = 0;
   let dirs = 0;
   let encrypted = 0;
@@ -1511,10 +1644,10 @@ async function archiveProperties(): Promise<void> {
   const crypt = encrypted === 0 ? "Aucun" : encrypted === files ? "Tous les fichiers" : `${n(encrypted)} fichiers sur ${n(files)}`;
   const dates = !Number.isFinite(oldest) ? "Inconnues" : oldest === newest ? fmt.date(oldest) : `Du ${fmt.date(oldest)} au ${fmt.date(newest)}`;
   const access =
-    info.format === "rar" ? "Lecture seule (Lynk ne crée pas d'archives RAR)" : info.volumes > 1 ? "Lecture seule (archive en volumes)" : "Ajout et suppression possibles";
+    loc.via ? "Lecture seule (archive dans une archive)" : info.format === "rar" ? "Lecture seule (Lynk ne crée pas d'archives RAR)" : info.volumes > 1 ? "Lecture seule (archive en volumes)" : "Ajout et suppression possibles";
 
   const rows: [string, string][] = [
-    ["Emplacement", fmt.parentDir(info.path)],
+    ["Emplacement", loc.via ? `Dans ${locPath({ ...loc.via.outer, inner: parentEntry(loc.via.entry) })}` : fmt.parentDir(info.path)],
     ["Format", info.volumes > 1 ? `${info.formatLabel}, en ${info.volumes} volumes` : info.formatLabel],
     ["Taille", `${fmt.size(info.size)} (${n(info.size)} octets)`],
     ["Contenu", `${fmt.size(root.size)} une fois extrait`],
@@ -1541,12 +1674,167 @@ async function archiveProperties(): Promise<void> {
       button("Fermer", { variant: "accent", onclick: () => close(null) }),
       button("Tester", { variant: "standard", glyph: Glyph.check, onclick: () => close("test") }),
       button("Convertir…", { variant: "standard", glyph: Glyph.convert, onclick: () => close("convert") }),
-      button("Propriétés Windows", { variant: "standard", glyph: Glyph.properties, onclick: () => close("windows") }),
-    ],
+      // Une archive imbriquée n'est qu'une copie temporaire : ses propriétés Windows n'apprendraient rien.
+      loc.via ? null : button("Propriétés Windows", { variant: "standard", glyph: Glyph.properties, onclick: () => close("windows") }),
+    ].filter((b): b is HTMLButtonElement => b !== null),
   }), null);
   if (choice === "windows") await api.properties(info.path);
   else if (choice === "convert") await convertDialog([info.path]);
   else if (choice === "test") await runTest(info.path, opened.password);
+}
+
+// ——— Aperçu rapide (Espace) ———
+
+/** Au-delà, extraire un fichier d'archive juste pour le regarder serait trop long. */
+const PEEK_MAX = 32 * 1024 * 1024;
+
+/** Chemin sur le disque d'une ligne : elle-même, ou sa copie temporaire si elle est dans l'archive. */
+async function diskPathOf(r: Row, title: string): Promise<string | null> {
+  if (state.loc.kind === "fs") return r.key;
+  const [file] = (await copiesOf([r.key], title)) ?? [];
+  return file ?? null;
+}
+
+async function quickLook(): Promise<void> {
+  const list = currentList();
+  const start = list?.current();
+  if (!list || !start || start.isDir || document.querySelector(".peek-dialog")) return;
+
+  const title = h("h2", { class: "ellipsis" });
+  const meta = h("span", { class: "muted small" });
+  const body = h("div", { class: "peek-body" });
+  const dialog = h("dialog", { class: "dialog peek-dialog" });
+  let current = start;
+  let token = 0;
+
+  const show = async (r: Row) => {
+    current = r;
+    const mine = ++token;
+    title.textContent = r.name;
+    title.title = r.label;
+    meta.textContent = [kindLabel(r), r.size !== null ? fmt.size(r.size) : "", fmt.date(r.modified)].filter(Boolean).join(" · ");
+    body.replaceChildren(h("div", { class: "peek-empty muted" }, "Chargement…"));
+    const tooBig = state.loc.kind === "archive" && (r.size ?? 0) > PEEK_MAX;
+    let content: Node;
+    try {
+      const path = tooBig ? null : await diskPathOf(r, `Aperçu de ${r.name}`);
+      const peek = path ? await api.peek(path) : ({ kind: "other" } as const);
+      if (peek.kind === "image") content = h("img", { class: "peek-image", src: peek.url, alt: r.name });
+      else if (peek.kind === "text") {
+        content = h("div", { class: "peek-text-wrap" }, h("pre", { class: "peek-text" }, peek.text), peek.truncated ? h("p", { class: "muted small" }, "Aperçu limité au début du fichier.") : null);
+      } else {
+        content = h(
+          "div",
+          { class: "peek-empty" },
+          rowIcon(r, state.loc.kind === "fs" ? r.key : null),
+          h("p", { class: "muted" }, tooBig ? "Fichier trop volumineux pour un aperçu depuis l'archive." : "Pas d'aperçu pour ce type de fichier."),
+        );
+      }
+    } catch (e) {
+      content = h("div", { class: "peek-empty" }, h("p", { class: "error-text" }, errorMessage(e)));
+    }
+    if (mine === token) body.replaceChildren(content);
+  };
+
+  const move = (delta: number) => {
+    const next = list.step(delta, (r) => !r.isDir);
+    if (next) void show(next);
+  };
+  const close = () => {
+    token++;
+    dialog.close();
+    dialog.remove();
+    list.focus();
+  };
+  dialog.addEventListener("keydown", (e) => {
+    if (e.key === " " || e.key === "Escape") {
+      e.preventDefault();
+      close();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      move(1);
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      move(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      close();
+      void activate(current);
+    }
+  });
+  dialog.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    close();
+  });
+  dialog.append(
+    h("div", { class: "peek-head" }, h("div", { class: "peek-title" }, title, meta), button("", { glyph: Glyph.cancel, title: "Fermer (Espace)", onclick: close })),
+    body,
+    h(
+      "div",
+      { class: "dialog-actions" },
+      button("", { glyph: Glyph.back, title: "Précédent (←)", variant: "standard", onclick: () => move(-1) }),
+      button("", { glyph: "", title: "Suivant (→)", variant: "standard", onclick: () => move(1) }),
+      h("span", { class: "grow" }),
+      button("Ouvrir", { variant: "accent", glyph: Glyph.open, onclick: () => (close(), void activate(current)) }),
+    ),
+  );
+  document.body.append(dialog);
+  dialog.showModal();
+  await show(start);
+}
+
+// ——— Sommes de contrôle ———
+
+async function showChecksums(rows: Row[]): Promise<void> {
+  const files = rows.filter((r) => !r.isDir);
+  if (!files.length) return;
+  let paths: string[];
+  if (state.loc.kind === "fs") paths = files.map((r) => r.key);
+  else {
+    const copies = await copiesOf(files.map((r) => r.key), "Préparation des fichiers");
+    if (!copies) return;
+    paths = copies;
+  }
+  let hashes: FileHash[];
+  try {
+    hashes = await withProgress("Calcul des sommes de contrôle", (onProgress) => hashFiles({ paths }, onProgress));
+  } catch (e) {
+    if (!(isCmdError(e) && e.kind === "cancelled")) await alertError("Calcul impossible", errorMessage(e));
+    return;
+  }
+
+  const lines = hashes.map((x) => {
+    const crc = h("code", {}, x.crc32);
+    const sha = h("code", { class: "hash-sha" }, x.sha256);
+    const row = h("div", { class: "hash-row" }, h("div", { class: "hash-name ellipsis", title: x.path }, fmt.baseName(x.path)), h("span", { class: "muted small" }, fmt.size(x.size)), crc, sha);
+    return { x, row };
+  });
+  const expected = h("input", { class: "field grow", placeholder: "Coller une somme (CRC32 ou SHA-256) pour la vérifier", spellcheck: false });
+  const verdict = h("span", { class: "small", role: "status" });
+  expected.addEventListener("input", () => {
+    const v = expected.value.trim().toLowerCase().replace(/^0x/, "");
+    const hit = v ? lines.find(({ x }) => x.crc32 === v || x.sha256 === v) : undefined;
+    lines.forEach(({ row, x }) => row.classList.toggle("match", x === hit?.x));
+    verdict.className = `small ${v ? (hit ? "ok-text" : "err-text") : ""}`;
+    verdict.textContent = !v ? "" : hit ? `Correspond à ${fmt.baseName(hit.x.path)}.` : "Aucun fichier ne correspond.";
+  });
+  // Format de sha256sum : réutilisable tel quel pour une vérification en ligne de commande.
+  const text = hashes.map((x) => `${x.sha256}  ${fmt.baseName(x.path)}`).join("\r\n");
+  await modal<void>((close) => ({
+    title: hashes.length > 1 ? `Sommes de contrôle (${hashes.length} fichiers)` : "Sommes de contrôle",
+    className: "hash-dialog",
+    body: h(
+      "div",
+      { class: "stack" },
+      h("div", { class: "hash-list" }, h("div", { class: "hash-row hash-head muted small" }, h("span", {}, "Fichier"), h("span", {}, "Taille"), h("span", {}, "CRC32"), h("span", {}, "SHA-256")), ...lines.map((l) => l.row)),
+      h("div", { class: "row" }, expected),
+      verdict,
+    ),
+    actions: [
+      button("Fermer", { variant: "accent", onclick: () => close() }),
+      button("Copier (SHA-256)", { variant: "standard", onclick: () => void writeText(text).then(() => toast("Sommes copiées")) }),
+    ],
+  }), undefined);
 }
 
 // ——— Glisser-déposer ———

@@ -16,10 +16,12 @@ serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+base64 = "0.22"
+crc32fast = "1"
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-base64 = "0.22"
 png = "0.18"
 windows-core = "0.62"
 windows = { version = "0.62", features = [

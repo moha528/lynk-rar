@@ -119,6 +119,25 @@ export class ListView<T> {
     this.el.focus({ preventScroll: true });
   }
 
+  /** Élément courant (curseur clavier), à défaut le premier sélectionné. */
+  current(): T | null {
+    const key = this.cursor ?? [...this.selected][0];
+    const i = key !== undefined ? this.index.get(key) : undefined;
+    return i === undefined ? null : this.items[i];
+  }
+
+  /** Sélectionne l'élément voisin dans l'ordre affiché (aperçu : ← et →) et le rend. */
+  step(delta: number, accept: (item: T) => boolean = () => true): T | null {
+    const at = this.cursor !== null ? (this.index.get(this.cursor) ?? -1) : -1;
+    for (let i = at + delta; i >= 0 && i < this.items.length; i += delta) {
+      if (accept(this.items[i])) {
+        this.moveCursor(i, false, false);
+        return this.items[i];
+      }
+    }
+    return null;
+  }
+
   sort(): { key: string; asc: boolean } {
     return { key: this.sortKey, asc: this.asc };
   }

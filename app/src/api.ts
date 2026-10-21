@@ -163,14 +163,17 @@ export const api = {
   formats: () => invoke<FormatInfo[]>("formats"),
   open: (path: string, password?: string | null) =>
     invoke<ArchiveInfo>("open_archive", { path, password: password ?? null }),
-  suggestArchivePath: (sources: string[], format: FormatId) =>
-    invoke<string>("suggest_archive_path", { sources, format }),
+  /** Nom libre pour une nouvelle archive, à côté des sources ou dans `dir`. */
+  suggestArchivePath: (sources: string[], format: FormatId, dir?: string | null) =>
+    invoke<string>("suggest_archive_path", { sources, format, dir: dir ?? null }),
   openEntry: (archive: string, entry: string, password?: string | null) =>
     invoke<void>("open_entry", { archive, entry, password: password ?? null }),
   reveal: (path: string) => invoke<void>("reveal", { path }),
   openPath: (path: string) => invoke<void>("open_path", { path }),
   /** Feuille de propriétés de Windows (comme Alt+Entrée dans l'Explorateur). */
   properties: (path: string) => invoke<void>("properties", { path }),
+  /** Aperçu rapide d'un fichier du disque. */
+  peek: (path: string) => invoke<Peek>("peek", { path }),
   accent: () => invoke<{ light: string; dark: string } | null>("system_accent"),
   /** Icônes système par type : `.pdf`, `""` (sans extension), `/` (dossier). */
   fileIcons: (keys: string[]) => invoke<Record<string, string>>("file_icons", { keys }),
@@ -209,7 +212,7 @@ let nextJob = 1;
 
 /** Lance une opération longue côté Rust et relaie son avancement. */
 function startJob<T>(
-  command: "extract" | "create" | "update" | "test_archive" | "convert",
+  command: "extract" | "create" | "update" | "test_archive" | "convert" | "materialize_entries" | "hash_files",
   req: object,
   onProgress: (p: ProgressEvent) => void,
 ): Job<T> {
@@ -266,6 +269,27 @@ export interface ConvertRequest {
 
 export const convert = (req: ConvertRequest, onProgress: (p: ProgressEvent) => void) =>
   startJob<Created>("convert", req, onProgress);
+
+/** Copie temporaire d'éléments de l'archive ; rend leurs chemins sur le disque. */
+export const materialize = (
+  req: { archive: string; items: string[]; password?: string | null },
+  onProgress: (p: ProgressEvent) => void,
+) => startJob<string[]>("materialize_entries", req, onProgress);
+
+export type Peek =
+  | { kind: "image"; url: string }
+  | { kind: "text"; text: string; truncated: boolean }
+  | { kind: "other" };
+
+export interface FileHash {
+  path: string;
+  size: number;
+  crc32: string;
+  sha256: string;
+}
+
+export const hashFiles = (req: { paths: string[] }, onProgress: (p: ProgressEvent) => void) =>
+  startJob<FileHash[]>("hash_files", req, onProgress);
 
 /** Extensions reconnues comme archives (ouverture par glisser-déposer). */
 export const ARCHIVE_RE = /\.(zip|jar|7z|rar|tar|tgz|tbz2?|txz|tzst|tar\.(gz|bz2|xz|zst))(\.\d{3})?$/i;

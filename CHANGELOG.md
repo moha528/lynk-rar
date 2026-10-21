@@ -11,11 +11,16 @@ Les changements notables de Lynk. Le format suit [Keep a Changelog](https://keep
 - **Propriétés Windows** des fichiers et dossiers du disque, la feuille native de l'Explorateur.
 - **Mises à jour** : Lynk signale une nouvelle version publiée sur GitHub (une fois par jour au plus, désactivable dans les paramètres).
 - **Publication automatisée** : un tag `v*` fabrique l'installeur et le CLI et prépare une version en brouillon.
+- **Archives imbriquées** : une archive contenue dans une autre s'ouvre sur place, comme un dossier (en lecture seule), avec un chemin complet dans la barre d'adresse.
+- **Aperçu rapide** (Espace) des images et des textes, sur le disque comme dans une archive ; ← et → passent au fichier voisin.
+- **Sommes de contrôle** CRC32 et SHA-256, avec vérification d'une somme collée et copie au format de `sha256sum`.
+- **Une archive par élément** : option de « Nouvelle archive » pour plusieurs fichiers ou dossiers.
 
 ### Modifié
 
 - La progression d'une modification d'archive 7z ou TAR (extraction puis recompression) tient désormais sur une seule barre.
 - La taille d'une archive en volumes compte tous ses volumes.
+- Un mot de passe saisi n'est plus redemandé en revenant à une archive pendant la session.
 
 ### Corrigé
 

@@ -46,6 +46,8 @@ export const Glyph = {
   info: "\uE946",
   properties: "\uE90F",
   update: "\uE777",
+  preview: "\uE7B3",
+  hash: "\uE8F4",
 } as const;
 
 export function icon(glyph: string, cls = ""): HTMLSpanElement {
