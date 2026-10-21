@@ -20,11 +20,13 @@ cd app; npm run bundle
 
 L'installeur produit se trouve dans `target\release\bundle\nsis\`.
 
+Le manifeste n'a pas à être retouché à la main : au moment de l'empaquetage, sa version est celle du workspace (`Cargo.toml`) et son `Publisher` le sujet du certificat qui signe.
+
 **Diffusion.** Le certificat `CN=Lynk Dev` n'est approuvé que sur votre machine. Sur un autre poste, Lynk s'installe et fonctionne, mais sans menu contextuel. Pour diffuser :
 
 1. obtenez un certificat de signature de code reconnu, par exemple via Azure Trusted Signing ;
-2. remplacez `Publisher` dans [AppxManifest.xml](AppxManifest.xml) par le sujet exact de ce certificat ;
-3. définissez `LYNK_CERT_THUMBPRINT` avec son empreinte avant `npm run bundle`.
+2. en local, définissez `LYNK_CERT_THUMBPRINT` avec son empreinte avant `npm run bundle` ;
+3. pour les versions fabriquées par GitHub Actions ([release.yml](../.github/workflows/release.yml)), ajoutez les secrets `LYNK_CERT_PFX` (le `.pfx` en base64) et `LYNK_CERT_PASSWORD` au dépôt. Sans eux, la CI signe avec un certificat jetable.
 
 ## Installation de développement (sans installeur)
 

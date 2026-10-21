@@ -1,0 +1,94 @@
+name: Publication
+
+# Un tag v1.2.3 fabrique l'installeur et le CLI, puis prépare une version en
+# brouillon sur GitHub : on relit les notes, puis on la publie à la main.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Installeur Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version du tag et du workspace
+        id: version
+        shell: pwsh
+        run: |
+          . ./packaging/common.ps1
+          $version = Get-LynkVersion
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Le tag $env:GITHUB_REF_NAME ne correspond pas à la version $version de Cargo.toml (packaging/set-version.ps1)."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Dépendances de l'interface
+        working-directory: app
+        run: npm ci
+
+      # Facultatif : un vrai certificat de signature de code, en secrets du dépôt
+      # (LYNK_CERT_PFX en base64, LYNK_CERT_PASSWORD). Sans lui, le package MSIX est
+      # signé par un certificat jetable : Lynk s'installe et marche, mais sans
+      # l'intégration à l'Explorateur (voir packaging/README.md).
+      - name: Certificat de signature
+        shell: pwsh
+        env:
+          LYNK_CERT_PFX: ${{ secrets.LYNK_CERT_PFX }}
+          LYNK_CERT_PASSWORD: ${{ secrets.LYNK_CERT_PASSWORD }}
+        run: |
+          if (-not $env:LYNK_CERT_PFX) { Write-Host "Pas de certificat fourni : certificat jetable."; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP "lynk.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:LYNK_CERT_PFX))
+          $password = ConvertTo-SecureString $env:LYNK_CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          "LYNK_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Installeur (NSIS, avec l'intégration à l'Explorateur)
+        working-directory: app
+        run: npm run bundle
+
+      - name: CLI
+        run: cargo build --release -p lynk-cli
+
+      - name: Fichiers de la version
+        id: files
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $out = New-Item -ItemType Directory -Force dist-release
+          $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "Installeur introuvable dans target/release/bundle/nsis." }
+          Copy-Item $setup.FullName (Join-Path $out "Lynk_${version}_x64-setup.exe")
+          $cli = Join-Path $env:RUNNER_TEMP "cli"
+          New-Item -ItemType Directory -Force $cli | Out-Null
+          Copy-Item target/release/lynk.exe, LICENSE, THIRD-PARTY-NOTICES.md $cli
+          Compress-Archive -Path "$cli/*" -DestinationPath (Join-Path $out "lynk-cli_${version}_x64.zip")
+          Get-ChildItem $out -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content (Join-Path $out "SHA256SUMS.txt") -Encoding ascii
+
+      - name: Brouillon de version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist-release -File).FullName `
+            --draft --title "Lynk $version" --generate-notes --verify-tag

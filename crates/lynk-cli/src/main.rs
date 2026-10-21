@@ -59,6 +59,29 @@ enum Cmd {
         #[arg(short, long, value_parser = parse_size)]
         volume: Option<u64>,
     },
+    /// Convertit une archive vers un autre format (RAR → 7z, ZIP → TAR.ZST…)
+    #[command(alias = "c")]
+    Convert {
+        archive: PathBuf,
+        /// Format cible : zip, 7z, tar, tar.gz, tar.bz2, tar.xz, tar.zst
+        #[arg(short, long, value_parser = parse_format)]
+        format: Option<Format>,
+        /// Nouvelle archive (par défaut : à côté, au même nom)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// 0 = stockage, 9 = maximum
+        #[arg(short, long, default_value_t = 6, value_parser = clap::value_parser!(u32).range(0..=9))]
+        level: u32,
+        /// Mot de passe de l'archive d'origine
+        #[arg(short, long)]
+        password: Option<String>,
+        /// Chiffre la nouvelle archive (AES-256, ZIP et 7z)
+        #[arg(long)]
+        new_password: Option<String>,
+        /// Découpe en volumes .001, .002… (ex. 700M, 4G, 100K)
+        #[arg(short, long, value_parser = parse_size)]
+        volume: Option<u64>,
+    },
     /// Vérifie l'intégrité d'une archive sans rien extraire
     #[command(alias = "t")]
     Test {
@@ -214,6 +237,27 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             let bar = Bar::new();
             let parts = lynk_core::create(&sources, &dest, &opts, &bar)
                 .with_context(|| format!("création de {}", dest.display()))?;
+            bar.0.finish_and_clear();
+            for part in &parts {
+                let size = std::fs::metadata(part).map(|m| m.len()).unwrap_or(0);
+                println!("{} ({})", part.display(), human(size));
+            }
+        }
+        Cmd::Convert { archive, format, output, level, password, new_password, volume } => {
+            let Some(format) = format.or_else(|| output.as_ref().and_then(|o| Format::from_name(&o.to_string_lossy())))
+            else {
+                bail!("précisez le format cible (--format 7z) ou une sortie avec son extension");
+            };
+            let dest =
+                output.unwrap_or_else(|| lynk_core::default_archive_path(std::slice::from_ref(&archive), format));
+            let create = CreateOptions { format, level, password: new_password, volume_size: volume };
+            let bar = Bar::new();
+            let parts = with_password(password, |pw| {
+                bar.0.reset();
+                let opts = lynk_core::ConvertOptions { password: pw, create: create.clone() };
+                lynk_core::convert(&archive, &dest, &opts, &bar)
+            })
+            .with_context(|| format!("conversion de {}", archive.display()))?;
             bar.0.finish_and_clear();
             for part in &parts {
                 let size = std::fs::metadata(part).map(|m| m.len()).unwrap_or(0);

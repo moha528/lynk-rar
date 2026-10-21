@@ -33,7 +33,10 @@ export interface ArchiveInfo {
   name: string;
   format: FormatId;
   formatLabel: string;
+  /** Taille sur le disque, tous volumes compris. */
   size: number;
+  /** Nombre de volumes `.001`, `.002`… (1 pour une archive d'un seul tenant). */
+  volumes: number;
   entries: Entry[];
 }
 
@@ -166,6 +169,8 @@ export const api = {
     invoke<void>("open_entry", { archive, entry, password: password ?? null }),
   reveal: (path: string) => invoke<void>("reveal", { path }),
   openPath: (path: string) => invoke<void>("open_path", { path }),
+  /** Feuille de propriétés de Windows (comme Alt+Entrée dans l'Explorateur). */
+  properties: (path: string) => invoke<void>("properties", { path }),
   accent: () => invoke<{ light: string; dark: string } | null>("system_accent"),
   /** Icônes système par type : `.pdf`, `""` (sans extension), `/` (dossier). */
   fileIcons: (keys: string[]) => invoke<Record<string, string>>("file_icons", { keys }),
@@ -204,7 +209,7 @@ let nextJob = 1;
 
 /** Lance une opération longue côté Rust et relaie son avancement. */
 function startJob<T>(
-  command: "extract" | "create" | "update" | "test_archive",
+  command: "extract" | "create" | "update" | "test_archive" | "convert",
   req: object,
   onProgress: (p: ProgressEvent) => void,
 ): Job<T> {
@@ -246,6 +251,21 @@ export const testArchive = (
   req: { archive: string; password?: string | null },
   onProgress: (p: ProgressEvent) => void,
 ) => startJob<TestReport>("test_archive", req, onProgress);
+
+export interface ConvertRequest {
+  archive: string;
+  dest: string;
+  /** Mot de passe de l'archive d'origine. */
+  password?: string | null;
+  format: FormatId;
+  level: number;
+  /** Mot de passe de la nouvelle archive. */
+  newPassword?: string | null;
+  volumeSize?: number | null;
+}
+
+export const convert = (req: ConvertRequest, onProgress: (p: ProgressEvent) => void) =>
+  startJob<Created>("convert", req, onProgress);
 
 /** Extensions reconnues comme archives (ouverture par glisser-déposer). */
 export const ARCHIVE_RE = /\.(zip|jar|7z|rar|tar|tgz|tbz2?|txz|tzst|tar\.(gz|bz2|xz|zst))(\.\d{3})?$/i;

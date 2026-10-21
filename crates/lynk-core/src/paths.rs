@@ -49,6 +49,13 @@ pub(crate) fn collect(sources: &[PathBuf]) -> Result<Vec<Item>> {
     Ok(items)
 }
 
+/// Contenu de premier niveau d'un dossier, trié : ce qu'on réarchive après extraction.
+pub(crate) fn children(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut out = fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<std::io::Result<Vec<_>>>()?;
+    out.sort();
+    Ok(out)
+}
+
 /// Chemin relatif sûr pour une entrée d'archive : pas de `..`, pas de chemin absolu
 /// ni de lecteur, caractères interdits par Windows remplacés. `None` si rien ne reste.
 pub fn safe_relative(name: &str) -> Option<PathBuf> {

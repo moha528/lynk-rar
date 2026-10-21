@@ -42,6 +42,10 @@ export const Glyph = {
   error: "",
   archive: "",
   delete: "",
+  convert: "\uE8AB",
+  info: "\uE946",
+  properties: "\uE90F",
+  update: "\uE777",
 } as const;
 
 export function icon(glyph: string, cls = ""): HTMLSpanElement {
@@ -184,6 +188,31 @@ export function toast(message: string, action?: { label: string; run: () => void
   );
   host.append(el);
   setTimeout(() => el.remove(), 7000);
+}
+
+/** Annonce qui reste affichée jusqu'à ce qu'on y réponde (nouvelle version…). */
+export function notice(message: string, actions: { label: string; accent?: boolean; run: () => void }[]): void {
+  const host = document.querySelector(".toasts") ?? document.body.appendChild(h("div", { class: "toasts" }));
+  const el: HTMLElement = h(
+    "div",
+    { class: "toast notice", role: "status" },
+    icon(Glyph.info, "accent"),
+    h("span", { class: "toast-text" }, message),
+    h(
+      "div",
+      { class: "notice-actions" },
+      ...actions.map((a) =>
+        button(a.label, {
+          variant: a.accent ? "accent" : "standard",
+          onclick: () => {
+            el.remove();
+            a.run();
+          },
+        }),
+      ),
+    ),
+  );
+  host.append(el);
 }
 
 /** Barre de progression avec débit et temps restant, alimentée par les événements Rust. */

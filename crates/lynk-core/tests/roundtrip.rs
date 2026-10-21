@@ -69,6 +69,8 @@ fn roundtrip(format: Format, password: Option<&str>) {
     let names: Vec<_> = entries.iter().map(|e| e.path.as_str()).collect();
     assert!(names.contains(&"projet/docs/données é.bin"), "{format:?} : {names:?}");
     assert!(entries.iter().any(|e| e.is_dir && e.path == "projet/docs/vide"), "{format:?} : {names:?}");
+    let files = entries.iter().filter(|e| !e.is_dir && e.size > 0);
+    assert!(files.clone().all(|e| e.encrypted == password.is_some()), "{format:?} : chiffrement mal signalé");
 
     // Une seule racine « projet » : l'extraction intelligente dépose à côté de l'archive.
     let out = tmp.path().join("extrait");
@@ -186,7 +188,7 @@ fn update_adds_replaces_and_removes() {
         assert_eq!(count("projet/docs/nouveau.txt"), 1, "{format:?}");
         assert_eq!(count("projet/lisez-moi.txt"), 0, "{format:?}");
         assert_eq!(count("projet/docs/données é.bin"), 1, "{format:?}");
-        if format == Format::Zip && pw.is_some() {
+        if pw.is_some() {
             assert!(entries.iter().filter(|e| !e.is_dir).all(|e| e.encrypted), "{format:?} : chiffrement perdu");
         }
 
@@ -326,8 +328,82 @@ fn default_names() {
     let tgz = src.join("photos.tar.gz");
     fs::write(&tgz, "").unwrap();
     assert_eq!(lynk_core::default_archive_path(&[tgz], Format::Zip), src.join("photos.zip"));
+    let volume = src.join("film.7z.001");
+    fs::write(&volume, "").unwrap();
+    assert_eq!(lynk_core::default_archive_path(&[volume], Format::Zip), src.join("film.zip"));
     assert_eq!(
         lynk_core::default_archive_path(&[src.join("docs"), src.join("lisez-moi.txt")], Format::SevenZ),
         src.join("projet.7z")
     );
+}
+
+#[derive(Default)]
+struct Bar {
+    total: AtomicU64,
+    done: AtomicU64,
+    totals: AtomicU64,
+}
+
+impl Progress for Bar {
+    fn total(&self, n: u64) {
+        self.total.store(n, Ordering::Relaxed);
+        self.totals.fetch_add(1, Ordering::Relaxed);
+    }
+    fn advance(&self, n: u64) {
+        self.done.fetch_add(n, Ordering::Relaxed);
+    }
+}
+
+#[test]
+fn convert_keeps_content() {
+    let cases = [
+        (Format::Zip, None, Format::SevenZ, Some("s3cret")),
+        (Format::SevenZ, Some("s3cret"), Format::TarZst, None),
+        (Format::TarGz, None, Format::Zip, None),
+    ];
+    for (from, from_pw, to, to_pw) in cases {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = sample(tmp.path());
+        let archive = tmp.path().join(format!("a.{}", from.extension()));
+        let opts = CreateOptions { format: from, password: from_pw.map(str::to_owned), ..Default::default() };
+        lynk_core::create(std::slice::from_ref(&src), &archive, &opts, &lynk_core::NoProgress).unwrap();
+
+        let dest = lynk_core::default_archive_path(std::slice::from_ref(&archive), to);
+        assert_eq!(dest, tmp.path().join(format!("a.{}", to.extension())), "{from:?} → {to:?}");
+        let convert = lynk_core::ConvertOptions {
+            password: from_pw.map(str::to_owned),
+            create: CreateOptions { format: to, level: 3, password: to_pw.map(str::to_owned), volume_size: None },
+        };
+        let bar = Bar::default();
+        let parts = lynk_core::convert(&archive, &dest, &convert, &bar).unwrap();
+        assert_eq!(parts, std::slice::from_ref(&dest));
+        // Une seule barre pour les deux étapes, remplie exactement.
+        assert_eq!(bar.totals.load(Ordering::Relaxed), 1, "{from:?} → {to:?}");
+        assert_eq!(bar.done.load(Ordering::Relaxed), bar.total.load(Ordering::Relaxed), "{from:?} → {to:?}");
+
+        assert_eq!(Format::detect(&dest).unwrap(), to);
+        let out = tmp.path().join("out");
+        let extract = ExtractOptions { password: to_pw.map(str::to_owned), ..Default::default() };
+        lynk_core::extract(&dest, &out, &extract, &lynk_core::NoProgress).unwrap();
+        assert_eq!(files_under(&out.join("projet")), files_under(&src), "{from:?} → {to:?}");
+        assert!(out.join("projet/docs/vide").is_dir(), "{from:?} → {to:?}");
+        let leftovers: Vec<_> = fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with('.'))
+            .collect();
+        assert!(leftovers.is_empty(), "{from:?} → {to:?} : fichiers temporaires {leftovers:?}");
+    }
+}
+
+#[test]
+fn convert_refuses_to_overwrite_source() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = sample(tmp.path());
+    let archive = tmp.path().join("a.zip");
+    lynk_core::create(&[src], &archive, &CreateOptions::default(), &lynk_core::NoProgress).unwrap();
+    let before = fs::read(&archive).unwrap();
+    let opts = lynk_core::ConvertOptions::default();
+    assert!(lynk_core::convert(&archive, &archive, &opts, &lynk_core::NoProgress).is_err());
+    assert_eq!(fs::read(&archive).unwrap(), before);
 }

@@ -43,6 +43,22 @@ cargo test --workspace
 cd app && npm run typecheck
 ```
 
+## Publier une version
+
+Réservé aux mainteneurs. La version fait foi dans `Cargo.toml` (`[workspace.package]`) ; un script la reporte partout ailleurs :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\set-version.ps1 0.2.0
+```
+
+Complétez [CHANGELOG.md](CHANGELOG.md), commitez, puis poussez le tag :
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+Le workflow [Publication](.github/workflows/release.yml) compile l'installeur et le CLI, calcule les sommes SHA-256 et prépare une version **en brouillon** sur GitHub. Relisez-la, puis publiez-la : c'est elle que l'application annonce aux utilisateurs.
+
 ## Conventions
 
 - **Langue** : les commentaires, les messages et l'interface sont en français.

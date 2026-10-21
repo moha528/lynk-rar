@@ -11,6 +11,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   api,
   ARCHIVE_RE,
+  convert,
   create,
   errorMessage,
   extract,
@@ -18,6 +19,7 @@ import {
   testArchive,
   update,
   type ArchiveInfo,
+  type Created,
   type ExtractMode,
   type ExtractReport,
   type FormatId,
@@ -35,7 +37,8 @@ import { LEVELS, renderSettings } from "./settings-view";
 import { settings, updateSettings } from "./settings";
 import { Toolbar, type ToolbarItem } from "./toolbar";
 import { buildTree, countFiles, find, walk, type TreeNode } from "./tree";
-import { alertError, askPassword, button, Glyph, h, icon, menuBelow, modal, showMenu, toast, withProgress, type MenuItem } from "./ui";
+import { alertError, askPassword, button, Glyph, h, icon, menuBelow, modal, notice, showMenu, toast, withProgress, type MenuItem } from "./ui";
+import { backgroundCheck, type Release } from "./updates";
 
 // ——— Modèle ———
 
@@ -49,6 +52,8 @@ interface Opened {
   info: ArchiveInfo;
   root: TreeNode;
   password: string | null;
+  /** Le listing lui-même a demandé le mot de passe : noms de fichiers chiffrés (7z). */
+  namesEncrypted: boolean;
 }
 
 /** Une ligne de liste, qu'elle vienne du disque ou d'une archive. */
@@ -162,6 +167,15 @@ export async function startExplorer(root: HTMLElement, initial: { open?: string;
     await go(await startLocation(), { push: false });
   }
   if (initial.compress?.length) await compressDialog(initial.compress);
+  void backgroundCheck(announceUpdate);
+}
+
+function announceUpdate(release: Release): void {
+  notice(`Lynk ${release.version} est disponible.`, [
+    { label: "Voir", accent: true, run: () => void api.openUrl(release.url) },
+    { label: "Plus tard", run: () => {} },
+    { label: "Ignorer cette version", run: () => updateSettings({ skippedVersion: release.version }) },
+  ]);
 }
 
 async function startLocation(): Promise<Loc> {
@@ -317,7 +331,7 @@ async function ensureArchive(path: string): Promise<boolean> {
   for (let attempt = 0; ; attempt++) {
     try {
       const info = await api.open(path, password);
-      state.opened = { info, root: buildTree(info.entries), password };
+      state.opened = { info, root: buildTree(info.entries), password, namesEncrypted: password !== null };
       void api.recentAdd(path);
       state.recent = [
         { path, name: info.name, size: info.size, opened: Date.now() / 1000 },
@@ -340,7 +354,7 @@ async function reloadArchive(): Promise<void> {
   const opened = state.opened;
   if (!opened) return;
   const info = await api.open(opened.info.path, opened.password);
-  state.opened = { info, root: buildTree(info.entries), password: opened.password };
+  state.opened = { ...opened, info, root: buildTree(info.entries) };
 }
 
 function canModify(): boolean {
@@ -877,10 +891,20 @@ function renderToolbar(): void {
         title: "Vérifier l'intégrité de l'archive",
         action: () => void runTest(archives[0].key, null),
       },
+      {
+        id: "convert",
+        label: "Convertir",
+        glyph: Glyph.convert,
+        disabled: !allArchives,
+        priority: 3,
+        title: allArchives ? "Convertir vers un autre format" : "Sélectionnez une ou plusieurs archives",
+        action: () => void convertDialog(archives.map((r) => r.key)),
+      },
       "sep",
       { id: "open-sel", label: "Ouvrir", glyph: Glyph.open, disabled: sel.length !== 1, priority: 5, action: () => void activate(sel[0]) },
       { id: "reveal", label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, priority: 3, action: () => void api.reveal(sel[0]?.key ?? loc.path) },
       { id: "copy", label: "Copier le chemin", glyph: "", priority: 2, action: () => void copyPaths(sel.length ? sel.map((r) => r.key) : [loc.path]) },
+      { id: "props", label: "Propriétés", glyph: Glyph.properties, disabled: sel.length > 1, priority: 1, title: "Propriétés Windows (Alt+Entrée)", action: () => void api.properties(sel[0]?.key ?? loc.path) },
       "sep",
       settingsTool,
     ];
@@ -892,6 +916,8 @@ function renderToolbar(): void {
       { id: "add", label: "Ajouter", glyph: Glyph.add, disabled: !editable, priority: 8, title: readOnly ?? "Ajouter des fichiers dans ce dossier de l'archive", action: () => void pickAndAdd() },
       { id: "delete", label: "Supprimer", glyph: Glyph.delete, disabled: !editable || !sel.length, priority: 7, title: readOnly ?? "Retirer la sélection de l'archive (Suppr)", action: () => void removeSelected() },
       { id: "test", label: "Tester", glyph: Glyph.check, priority: 6, action: () => void runTest(loc.path, state.opened?.password ?? null) },
+      { id: "convert", label: "Convertir", glyph: Glyph.convert, priority: 5, title: "Convertir vers un autre format", action: () => void convertDialog([loc.path]) },
+      { id: "props", label: "Propriétés", glyph: Glyph.info, priority: 4, title: "Propriétés de l'archive (Alt+Entrée)", action: () => void archiveProperties() },
       "sep",
       { id: "reveal", label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, priority: 3, action: () => void api.reveal(loc.path) },
       { id: "new", label: "Nouvelle archive", glyph: Glyph.archive, priority: 1, action: () => void pickAndCompress() },
@@ -951,6 +977,7 @@ function fsMenu(rows: Row[]): (MenuItem | "-")[] {
       "-",
       { label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, action: () => void api.openPath(loc.path) },
       { label: "Copier le chemin du dossier", glyph: "", action: () => void copyPaths([loc.path]) },
+      { label: "Propriétés du dossier", glyph: Glyph.properties, hint: "Alt+Entrée", action: () => void api.properties(loc.path) },
     ];
   }
   const paths = rows.map((r) => r.key);
@@ -964,7 +991,9 @@ function fsMenu(rows: Row[]): (MenuItem | "-")[] {
   } else if (one) {
     items.push({ label: "Ouvrir", glyph: one.isDir ? Glyph.folder : Glyph.open, hint: "Entrée", action: () => void activate(one) });
   }
-  if (allArchives) items.push("-", ...extractItemsFs(paths));
+  if (allArchives) {
+    items.push("-", ...extractItemsFs(paths), { label: "Convertir…", glyph: Glyph.convert, action: () => void convertDialog(paths) });
+  }
   items.push(
     "-",
     { label: `Ajouter à « ${base}.zip »`, glyph: Glyph.archive, action: () => void quickCompress(paths, "zip") },
@@ -973,6 +1002,8 @@ function fsMenu(rows: Row[]): (MenuItem | "-")[] {
     "-",
     { label: "Afficher dans l'Explorateur", glyph: Glyph.reveal, action: () => void api.reveal(paths[0]) },
     { label: rows.length > 1 ? "Copier les chemins" : "Copier le chemin", glyph: "", action: () => void copyPaths(paths) },
+    "-",
+    { label: "Propriétés", glyph: Glyph.properties, hint: "Alt+Entrée", disabled: rows.length > 1, action: () => void api.properties(paths[0]) },
   );
   return items;
 }
@@ -982,6 +1013,9 @@ function archiveMenu(rows: Row[]): (MenuItem | "-")[] {
     return [
       { label: "Ajouter des fichiers…", glyph: Glyph.add, disabled: !canModify(), action: () => void pickAndAdd() },
       { label: "Actualiser", glyph: "", hint: "F5", action: () => void refresh() },
+      "-",
+      { label: "Convertir l'archive…", glyph: Glyph.convert, action: () => void convertDialog([state.opened!.info.path]) },
+      { label: "Propriétés de l'archive", glyph: Glyph.info, hint: "Alt+Entrée", action: () => void archiveProperties() },
     ];
   }
   const one = rows.length === 1 ? rows[0] : null;
@@ -990,6 +1024,8 @@ function archiveMenu(rows: Row[]): (MenuItem | "-")[] {
     { label: "Extraire vers…", glyph: Glyph.extract, action: () => void runExtract("exact", true) },
     "-",
     { label: "Supprimer de l'archive", glyph: Glyph.delete, hint: "Suppr", disabled: !canModify(), action: () => void removeSelected() },
+    "-",
+    { label: "Propriétés", glyph: Glyph.info, hint: "Alt+Entrée", action: () => void archiveProperties() },
   ];
 }
 
@@ -1231,9 +1267,7 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
   const dest = h("input", { class: "field grow", value: await suggest(format) });
   dest.addEventListener("input", () => (destEdited = true));
   const formatSel = h("select", { class: "field" }, ...creatable.map((f) => h("option", { value: f.id, selected: f.id === format }, f.label)));
-  const level = h("input", { type: "range", min: 0, max: 9, value: s.defaultLevel, class: "slider" });
-  const levelLabel = h("span", { class: "muted level-label" }, LEVELS[s.defaultLevel]);
-  level.addEventListener("input", () => (levelLabel.textContent = LEVELS[Number(level.value)]));
+  const level = levelControl(s.defaultLevel);
   const password = h("input", { type: "password", class: "field grow", placeholder: "Aucun" });
   const pwHint = h("span", { class: "muted small" }, "AES-256. En 7z, les noms de fichiers sont aussi chiffrés.");
   const syncPassword = () => {
@@ -1295,7 +1329,7 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
       h("label", {}, "Format"),
       formatSel,
       h("label", {}, "Compression"),
-      h("div", { class: "row" }, level, levelLabel),
+      level.el,
       h("label", {}, "Mot de passe"),
       h("div", { class: "stack-tight" }, password, pwHint),
       h("label", {}, "Volumes"),
@@ -1307,10 +1341,212 @@ async function compressDialog(sources: string[], targetDir?: string): Promise<vo
   await runCreate(sources, {
     dest: dest.value,
     format,
-    level: Number(level.value),
+    level: level.value(),
     password: password.disabled ? null : password.value || null,
     volumeSize: volumeSize(),
   });
+}
+
+function levelControl(initial: number): { el: HTMLElement; value: () => number } {
+  const level = h("input", { type: "range", min: 0, max: 9, value: initial, class: "slider", "aria-label": "Niveau de compression" });
+  const label = h("span", { class: "muted level-label" }, LEVELS[initial]);
+  level.addEventListener("input", () => (label.textContent = LEVELS[Number(level.value)]));
+  return { el: h("div", { class: "row" }, level, label), value: () => Number(level.value) };
+}
+
+// ——— Conversion ———
+
+/** Format d'après le nom (`x.tar.gz`, `x.7z.001`), `null` si inconnu. */
+function formatOf(path: string): FormatId | null {
+  const name = fmt.baseName(path).replace(/\.\d{3}$/, "").toLowerCase();
+  const byLength = [...state.formats].sort((a, b) => b.extension.length - a.extension.length);
+  return byLength.find((f) => name.endsWith(`.${f.extension}`))?.id ?? null;
+}
+
+async function convertDialog(archives: string[]): Promise<void> {
+  if (!archives.length) return;
+  const creatable = state.formats.filter((f) => f.canCreate);
+  const one = archives.length === 1 ? archives[0] : null;
+  const opened = one && state.opened?.info.path === one ? state.opened : null;
+  // Convertir vers le format d'origine n'a pas de sens : on en propose un autre.
+  const source = one ? formatOf(one) : null;
+  const preferred = settings().defaultFormat;
+  let format: FormatId = preferred !== source && creatable.some((f) => f.id === preferred) ? preferred : source === "seven-z" ? "zip" : "seven-z";
+  let destEdited = false;
+  const suggest = (f: FormatId) => api.suggestArchivePath([one!], f);
+
+  const formatSel = h("select", { class: "field" }, ...creatable.map((f) => h("option", { value: f.id, selected: f.id === format }, f.label)));
+  const dest = h("input", { class: "field grow", value: one ? await suggest(format) : "" });
+  dest.addEventListener("input", () => (destEdited = true));
+  const browse = button("Parcourir…", {
+    variant: "standard",
+    onclick: async () => {
+      const e = formatExt(format);
+      const picked = await save({ defaultPath: dest.value, filters: [{ name: "Archive", extensions: [e.split(".").pop() ?? e] }] });
+      if (picked) {
+        dest.value = picked;
+        destEdited = true;
+      }
+    },
+  });
+  const level = levelControl(settings().defaultLevel);
+  const password = h("input", { type: "password", class: "field grow", placeholder: "Aucun" });
+  const pwHint = h("span", { class: "muted small" });
+  const syncFormat = () => {
+    const info = creatable.find((f) => f.id === format);
+    password.disabled = !info?.canEncrypt;
+    pwHint.textContent = !info?.canEncrypt
+      ? "Ce format ne gère pas le chiffrement."
+      : opened?.root.encrypted
+        ? "L'original est chiffré : sans mot de passe ici, la copie ne le sera pas."
+        : "AES-256. En 7z, les noms de fichiers sont aussi chiffrés.";
+  };
+  syncFormat();
+  formatSel.addEventListener("change", async () => {
+    format = formatSel.value as FormatId;
+    syncFormat();
+    if (one) dest.value = destEdited ? `${dest.value.replace(ARCHIVE_RE, "")}.${formatExt(format)}` : await suggest(format);
+  });
+
+  const label = one ? fmt.baseName(one) : `${archives.length} archives`;
+  const ok = await modal<boolean>((close) => ({
+    title: "Convertir l'archive",
+    className: "create-dialog",
+    body: h(
+      "div",
+      { class: "form" },
+      h("p", { class: "muted" }, icon(Glyph.archive), ` ${label} — l'original est conservé.`),
+      h("label", {}, "Format"),
+      formatSel,
+      h("label", {}, one ? "Nouvelle archive" : "Destination"),
+      one ? h("div", { class: "row" }, dest, browse) : h("span", { class: "muted" }, "À côté de chaque archive, sous le même nom"),
+      h("label", {}, "Compression"),
+      level.el,
+      h("label", {}, "Mot de passe"),
+      h("div", { class: "stack-tight" }, password, pwHint),
+    ),
+    actions: [button("Convertir", { variant: "accent", onclick: () => close(true) }), button("Annuler", { variant: "standard", onclick: () => close(false) })],
+  }), false);
+  if (!ok) return;
+
+  const req = { format, level: level.value(), newPassword: password.disabled ? null : password.value || null, volumeSize: null };
+  const made: string[] = [];
+  let total = 0;
+  for (const archive of archives) {
+    const target = one ? dest.value : await api.suggestArchivePath([archive], format);
+    const known = state.opened?.info.path === archive ? state.opened.password : null;
+    const created = await convertWithRetry(archive, known, { ...req, dest: target });
+    if (!created) break;
+    made.push(created.paths[0]);
+    total += created.size;
+  }
+  if (!made.length) return;
+  const last = made[made.length - 1];
+  toast(made.length > 1 ? `${made.length} archives converties (${fmt.size(total)})` : `${fmt.baseName(last)} créée (${fmt.size(total)})`, {
+    label: "Afficher",
+    run: () => void api.reveal(last),
+  });
+  if (state.loc.kind === "fs" && fmt.parentDir(last).toLowerCase() === state.loc.path.replace(/\\$/, "").toLowerCase()) {
+    await go(state.loc, { push: false, select: made });
+  }
+}
+
+async function convertWithRetry(
+  archive: string,
+  password: string | null,
+  req: { dest: string; format: FormatId; level: number; newPassword: string | null; volumeSize: number | null },
+): Promise<Created | null> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const created = await withProgress(`Conversion de ${fmt.baseName(archive)}`, (onProgress) => convert({ archive, password, ...req }, onProgress));
+      if (state.opened?.info.path === archive) state.opened.password = password;
+      return created;
+    } catch (e) {
+      if (isCmdError(e) && e.kind === "cancelled") return null;
+      if (isCmdError(e) && e.kind === "password") {
+        password = await askPassword(fmt.baseName(archive), attempt > 0 || password !== null);
+        if (password === null) return null;
+        continue;
+      }
+      await alertError("Échec de la conversion", errorMessage(e));
+      return null;
+    }
+  }
+}
+
+// ——— Propriétés ———
+
+/** Alt+Entrée : l'archive ouverte, sinon la feuille de propriétés de Windows. */
+function showProperties(): void {
+  const loc = state.loc;
+  if (loc.kind === "archive") void archiveProperties();
+  else if (loc.kind === "fs") {
+    const sel = selectedRows();
+    if (sel.length <= 1) void api.properties(sel[0]?.key ?? loc.path);
+  }
+}
+
+async function archiveProperties(): Promise<void> {
+  const opened = state.opened;
+  if (!opened || state.loc.kind !== "archive") return;
+  const { info, root } = opened;
+  let files = 0;
+  let dirs = 0;
+  let encrypted = 0;
+  let oldest = Infinity;
+  let newest = -Infinity;
+  for (const n of walk(root)) {
+    if (n.isDir) {
+      dirs++;
+      continue;
+    }
+    files++;
+    if (n.encrypted) encrypted++;
+    if (n.modified !== null) {
+      oldest = Math.min(oldest, n.modified);
+      newest = Math.max(newest, n.modified);
+    }
+  }
+  const n = (v: number) => v.toLocaleString("fr-FR");
+  const crypt = encrypted === 0 ? "Aucun" : encrypted === files ? "Tous les fichiers" : `${n(encrypted)} fichiers sur ${n(files)}`;
+  const dates = !Number.isFinite(oldest) ? "Inconnues" : oldest === newest ? fmt.date(oldest) : `Du ${fmt.date(oldest)} au ${fmt.date(newest)}`;
+  const access =
+    info.format === "rar" ? "Lecture seule (Lynk ne crée pas d'archives RAR)" : info.volumes > 1 ? "Lecture seule (archive en volumes)" : "Ajout et suppression possibles";
+
+  const rows: [string, string][] = [
+    ["Emplacement", fmt.parentDir(info.path)],
+    ["Format", info.volumes > 1 ? `${info.formatLabel}, en ${info.volumes} volumes` : info.formatLabel],
+    ["Taille", `${fmt.size(info.size)} (${n(info.size)} octets)`],
+    ["Contenu", `${fmt.size(root.size)} une fois extrait`],
+  ];
+  if (root.size > 0) rows.push(["Taux de compression", fmt.ratio(root.size, info.size)]);
+  rows.push(
+    ["Éléments", `${n(files)} fichier${files > 1 ? "s" : ""}, ${n(dirs)} dossier${dirs > 1 ? "s" : ""}`],
+    ["Chiffrement", opened.namesEncrypted ? `${crypt}, noms de fichiers compris` : crypt],
+    ["Dates des fichiers", dates],
+    ["Modification", access],
+  );
+  const sel = selectedRows();
+  if (sel.length) {
+    const size = sel.reduce((s, r) => s + (r.size ?? 0), 0);
+    const packed = sel.every((r) => r.packed !== null) ? sel.reduce((s, r) => s + (r.packed ?? 0), 0) : null;
+    rows.push(["Sélection", `${n(sel.length)} élément${sel.length > 1 ? "s" : ""}, ${fmt.size(size)}${packed !== null ? ` → ${fmt.size(packed)}` : ""}`]);
+  }
+
+  const choice = await modal<"windows" | "convert" | "test" | null>((close) => ({
+    title: info.name,
+    className: "props-dialog",
+    body: h("dl", { class: "props" }, ...rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])),
+    actions: [
+      button("Fermer", { variant: "accent", onclick: () => close(null) }),
+      button("Tester", { variant: "standard", glyph: Glyph.check, onclick: () => close("test") }),
+      button("Convertir…", { variant: "standard", glyph: Glyph.convert, onclick: () => close("convert") }),
+      button("Propriétés Windows", { variant: "standard", glyph: Glyph.properties, onclick: () => close("windows") }),
+    ],
+  }), null);
+  if (choice === "windows") await api.properties(info.path);
+  else if (choice === "convert") await convertDialog([info.path]);
+  else if (choice === "test") await runTest(info.path, opened.password);
 }
 
 // ——— Glisser-déposer ———
@@ -1392,6 +1628,7 @@ function onGlobalKey(e: KeyboardEvent): void {
   if (e.altKey && e.key === "ArrowLeft") (e.preventDefault(), void goBack());
   else if (e.altKey && e.key === "ArrowRight") (e.preventDefault(), void goForward());
   else if (e.altKey && e.key === "ArrowUp") (e.preventDefault(), void goUp());
+  else if (e.altKey && e.key === "Enter") (e.preventDefault(), showProperties());
   else if (e.key === "F5") (e.preventDefault(), void refresh());
   else if ((e.ctrlKey && k === "l") || (e.altKey && k === "d")) (e.preventDefault(), editAddress());
   else if (e.ctrlKey && k === "f") (e.preventDefault(), ui.search.focus());

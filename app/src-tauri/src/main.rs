@@ -51,6 +51,8 @@ fn main() {
             commands::file_icons,
             commands::drag_out,
             commands::test_archive,
+            commands::convert,
+            commands::properties,
             commands::notify,
             recent::recent_list,
             recent::recent_add,

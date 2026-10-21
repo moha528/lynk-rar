@@ -1,4 +1,5 @@
-//! Intégrations Windows de l'application : icônes du shell et glisser-déposer sortant.
+//! Intégrations Windows de l'application : icônes du shell, glisser-déposer sortant,
+//! propriétés des fichiers.
 
 use std::{ffi::c_void, mem::size_of, path::PathBuf};
 
@@ -17,12 +18,12 @@ use windows::Win32::{
         Shell::{
             BHID_DataObject, ILCreateFromPathW, ILFree, SHARD_PATHW, SHAddToRecentDocs,
             SHCreateShellItemArrayFromIDLists, SHDoDragDrop, SHFILEINFOW, SHGFI_DISPLAYNAME, SHGFI_ICON,
-            SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES, SHGetFileInfoW,
+            SHGFI_LARGEICON, SHGFI_USEFILEATTRIBUTES, SHGetFileInfoW, SHOP_FILEPATH, SHObjectProperties,
         },
         WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON, ICONINFO},
     },
 };
-use windows_core::HSTRING;
+use windows_core::{HSTRING, PCWSTR};
 
 /// Icône système d'un type de fichier, en PNG RGBA (32 px, affichée à 20 px : nette en HiDPI).
 /// `key` est une extension (`.pdf`), `""` sans extension, ou `/` pour un dossier.
@@ -329,6 +330,14 @@ pub fn drag_files(hwnd: isize, files: &[PathBuf]) -> windows_core::Result<bool> 
             ILFree(Some(p));
         }
         result
+    }
+}
+
+/// Feuille de propriétés de Windows d'un fichier ou d'un dossier, comme Alt+Entrée dans
+/// l'Explorateur. Le shell l'affiche sans bloquer : à appeler sur le thread de l'interface.
+pub fn properties(hwnd: isize, path: &str) -> windows_core::Result<()> {
+    unsafe {
+        SHObjectProperties(Some(HWND(hwnd as *mut c_void)), SHOP_FILEPATH, &HSTRING::from(path), PCWSTR::null()).ok()
     }
 }
 

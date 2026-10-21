@@ -40,6 +40,7 @@ const archive = {
   format: "rar",
   formatLabel: "RAR",
   size: 380_000_000,
+  volumes: 1,
   entries: [
     "9781788622059-LEARN_ETHICAL_HACKING_FROM_SCRATCH.pdf",
     "9781789611809-LEARN_KALI_LINUX_2019.pdf",
@@ -90,6 +91,8 @@ mockIPC(
         return archive;
       case "settings_load":
         return null;
+      case "plugin:app|version":
+        return "0.1.0";
       case "system_accent":
         return { light: "#9a1f88", dark: "#f27ee0" };
       case "file_icons":

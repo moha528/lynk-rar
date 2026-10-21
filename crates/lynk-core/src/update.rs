@@ -6,7 +6,7 @@
 
 use std::{
     collections::HashSet,
-    fs, io,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -15,6 +15,7 @@ use walkdir::WalkDir;
 use crate::{
     CreateOptions, Error, ExtractOptions, Format, Overwrite, Progress, Result, backends, cancelled_or,
     paths::{self, safe_relative},
+    progress::TwoSteps,
 };
 
 #[derive(Debug, Clone)]
@@ -103,10 +104,12 @@ fn rebuild(
 ) -> Result<()> {
     let parent = archive.parent().unwrap_or(Path::new("."));
     let work = paths::unique(parent, ".lynk-work", "");
+    let steps = TwoSteps::new(progress);
     let result = (|| {
         let extract =
             ExtractOptions { password: opts.password.clone(), overwrite: Overwrite::Replace, selection: None };
-        crate::extract(archive, &work, &extract, progress)?;
+        crate::extract(archive, &work, &extract, &steps)?;
+        steps.next();
         for r in remove {
             if let Some(rel) = safe_relative(r) {
                 let p = work.join(rel);
@@ -122,10 +125,8 @@ fn rebuild(
         for src in add {
             copy_into(src, &target)?;
         }
-        let mut sources = fs::read_dir(&work)?.map(|e| e.map(|e| e.path())).collect::<io::Result<Vec<_>>>()?;
-        sources.sort();
         let create = CreateOptions { format, level: opts.level, password: opts.password.clone(), volume_size: None };
-        crate::create(&sources, tmp, &create, progress).map(drop)
+        crate::create(&paths::children(&work)?, tmp, &create, &steps).map(drop)
     })();
     let _ = fs::remove_dir_all(&work);
     result

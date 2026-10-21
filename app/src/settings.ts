@@ -26,6 +26,12 @@ export interface Settings {
   menuHidden: number;
   /** Largeur des colonnes par vue (`fs`, `archive`) puis par colonne (`name`, `size`…). */
   columns: Record<string, Record<string, number>>;
+  /** Rechercher une nouvelle version sur GitHub au démarrage (une fois par jour). */
+  checkUpdates: boolean;
+  /** Dernière recherche de mise à jour, en millisecondes Unix. */
+  lastUpdateCheck: number;
+  /** Version dont l'utilisateur ne veut plus entendre parler. */
+  skippedVersion: string;
 }
 
 export const DEFAULTS: Settings = {
@@ -43,6 +49,9 @@ export const DEFAULTS: Settings = {
   notifications: true,
   menuHidden: 0,
   columns: {},
+  checkUpdates: true,
+  lastUpdateCheck: 0,
+  skippedVersion: "",
 };
 
 /** Même ordre que `Verb::ALL` dans crates/lynk-shell (le séparateur occupe le bit 4). */

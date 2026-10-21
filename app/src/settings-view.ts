@@ -7,8 +7,7 @@ import { api, errorMessage, type FormatInfo, type Overwrite } from "./api";
 import logoUrl from "../app-icon.svg";
 import { applyAppearance, MENU_ENTRIES, settings, updateSettings, type StartPlace, type Theme } from "./settings";
 import { alertError, button, Glyph, h } from "./ui";
-
-export const REPO_URL = "https://github.com/moha528/lynk-rar";
+import { checkForUpdate, REPO_URL } from "./updates";
 
 /** Extensions proposées à l'association, dans l'ordre d'affichage. */
 const FILE_TYPES = [".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".001"];
@@ -249,6 +248,51 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
 
   // ——— À propos ———
   const version = await getVersion().catch(() => "");
+  const lastCheck = s.lastUpdateCheck ? `Dernière vérification : ${new Date(s.lastUpdateCheck).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.` : "Jamais vérifié.";
+  const updateText = h("div", { class: "setting-desc", role: "status" }, lastCheck);
+  const updateActions = h("div", { class: "setting-sub", hidden: true });
+  const checkNow: HTMLButtonElement = button("Rechercher maintenant", {
+    variant: "standard",
+    glyph: Glyph.update,
+    onclick: async () => {
+      checkNow.disabled = true;
+      updateText.textContent = "Recherche en cours…";
+      updateActions.replaceChildren();
+      updateActions.hidden = true;
+      try {
+        const status = await checkForUpdate();
+        if (status.available && status.latest) {
+          const latest = status.latest;
+          updateText.textContent = `Lynk ${latest.version} est disponible (vous avez la ${status.current}).`;
+          updateActions.hidden = false;
+          updateActions.replaceChildren(button("Voir la nouvelle version", { variant: "accent", glyph: Glyph.reveal, onclick: () => void api.openUrl(latest.url) }));
+        } else {
+          updateText.textContent = status.latest ? `Lynk ${status.current} est à jour.` : "Aucune version publiée pour l'instant.";
+        }
+      } catch (e) {
+        updateText.textContent = `Vérification impossible : ${errorMessage(e)}`;
+      } finally {
+        checkNow.disabled = false;
+      }
+    },
+  });
+  root.append(
+    section(
+      "Mises à jour",
+      card(
+        "Rechercher les mises à jour au démarrage",
+        "Une fois par jour au plus, Lynk lit la dernière version publiée sur GitHub. Rien n'est envoyé ni installé sans vous.",
+        toggle(s.checkUpdates, (v) => updateSettings({ checkUpdates: v }), "Mises à jour automatiques"),
+      ),
+      h(
+        "div",
+        { class: "setting" },
+        h("div", { class: "setting-text" }, h("div", { class: "setting-title" }, `Version installée : ${version}`), updateText),
+        h("div", { class: "setting-control" }, checkNow),
+        updateActions,
+      ),
+    ),
+  );
   root.append(
     section(
       "À propos",

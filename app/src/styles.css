@@ -1345,6 +1345,42 @@ body.dragging .drop-hint {
   width: 96px;
 }
 
+.props-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.props-dialog h2 {
+  overflow-wrap: anywhere;
+}
+
+.props {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.props dt {
+  color: var(--text-2);
+}
+
+.props dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+@media (max-width: 520px) {
+  .props {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .props dd {
+    margin-bottom: 8px;
+  }
+}
+
 .error-text {
   color: var(--text-2);
   user-select: text;
@@ -1443,6 +1479,27 @@ body.dragging .drop-hint {
 
 .icon.err {
   color: var(--danger);
+}
+
+.icon.accent {
+  color: var(--accent);
+}
+
+/* Annonce persistante : texte puis boutons, qui passent à la ligne si besoin. */
+.toast.notice {
+  flex-wrap: wrap;
+}
+
+.toast.notice .toast-text {
+  flex: 1 1 180px;
+}
+
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
 }
 
 @keyframes rise {

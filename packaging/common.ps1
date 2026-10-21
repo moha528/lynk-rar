@@ -11,6 +11,15 @@ function Find-SdkTool([string] $Name) {
   $tool.FullName
 }
 
+# Version du workspace (`[workspace.package]` de Cargo.toml) : la seule à tenir à jour.
+function Get-LynkVersion {
+  $toml = Get-Content (Join-Path $Root "Cargo.toml") -Raw
+  if ($toml -notmatch '(?ms)^\[workspace\.package\].*?^version\s*=\s*"(\d+\.\d+\.\d+)"') {
+    throw "Version introuvable dans Cargo.toml ([workspace.package])."
+  }
+  $Matches[1]
+}
+
 function Invoke-Tool([string] $Exe, [string[]] $Arguments) {
   $output = & $Exe @Arguments 2>&1
   if ($LASTEXITCODE -ne 0) {
@@ -60,7 +69,13 @@ function New-LynkMsix($Cert) {
   $stage = Join-Path $Root "target\msix"
   Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
   New-Item -ItemType Directory (Join-Path $stage "Assets") -Force | Out-Null
-  Copy-Item (Join-Path $PSScriptRoot "AppxManifest.xml") $stage
+  # Version et éditeur ne s'écrivent pas à la main : celle du workspace, et le sujet
+  # du certificat (Windows refuse un package dont l'éditeur diffère du signataire).
+  $manifest = Get-Content (Join-Path $PSScriptRoot "AppxManifest.xml") -Raw -Encoding utf8
+  $publisher = [System.Security.SecurityElement]::Escape($Cert.Subject)
+  $manifest = $manifest -replace '(<Identity [^>]*?)Publisher="[^"]*"', "`$1Publisher=`"$publisher`""
+  $manifest = $manifest -replace '(<Identity [^>]*?)Version="[^"]*"', "`$1Version=`"$(Get-LynkVersion).0`""
+  [System.IO.File]::WriteAllText((Join-Path $stage "AppxManifest.xml"), $manifest, [System.Text.UTF8Encoding]::new($false))
   $icons = Join-Path $Root "app\src-tauri\icons"
   Copy-Item "$icons\Square150x150Logo.png", "$icons\Square44x44Logo.png", "$icons\StoreLogo.png" (Join-Path $stage "Assets")
 

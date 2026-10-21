@@ -1,6 +1,7 @@
 use std::{
     fmt,
     io::{self, Read},
+    sync::Mutex,
 };
 
 use crate::{Error, Result};
@@ -25,6 +26,72 @@ pub trait Progress: Sync {
 pub struct NoProgress;
 
 impl Progress for NoProgress {}
+
+/// Deux étapes enchaînées (extraction puis recompression) vues comme une seule
+/// barre : chacune en compte la moitié, sans que la barre ne reparte de zéro.
+pub(crate) struct TwoSteps<'a> {
+    inner: &'a dyn Progress,
+    state: Mutex<StepState>,
+}
+
+#[derive(Default)]
+struct StepState {
+    second: bool,
+    first_total: u64,
+    second_total: u64,
+    second_done: u64,
+    /// Octets déjà remontés pour la seconde étape, ramenés à l'échelle de la première.
+    second_reported: u64,
+}
+
+impl<'a> TwoSteps<'a> {
+    pub(crate) fn new(inner: &'a dyn Progress) -> Self {
+        Self { inner, state: Mutex::new(StepState::default()) }
+    }
+
+    /// Passe à la seconde étape.
+    pub(crate) fn next(&self) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).second = true;
+    }
+}
+
+impl Progress for TwoSteps<'_> {
+    fn total(&self, bytes: u64) {
+        let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if s.second {
+            s.second_total = bytes;
+        } else {
+            s.first_total = bytes;
+            self.inner.total(bytes.saturating_mul(2));
+        }
+    }
+
+    fn entry(&self, name: &str) {
+        self.inner.entry(name);
+    }
+
+    fn advance(&self, bytes: u64) {
+        let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if !s.second {
+            self.inner.advance(bytes);
+            return;
+        }
+        s.second_done += bytes;
+        let scaled = match s.second_total {
+            0 => 0,
+            total => (u128::from(s.second_done) * u128::from(s.first_total) / u128::from(total)) as u64,
+        }
+        .min(s.first_total);
+        if scaled > s.second_reported {
+            self.inner.advance(scaled - s.second_reported);
+            s.second_reported = scaled;
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.inner.is_cancelled()
+    }
+}
 
 pub(crate) fn check(progress: &dyn Progress) -> Result<()> {
     if progress.is_cancelled() { Err(Error::Cancelled) } else { Ok(()) }

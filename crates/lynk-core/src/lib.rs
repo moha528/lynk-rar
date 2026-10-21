@@ -4,6 +4,7 @@
 //! l'Explorateur passent tous par ces fonctions.
 
 mod backends;
+mod convert;
 mod entry;
 mod error;
 mod format;
@@ -20,6 +21,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+pub use convert::{ConvertOptions, convert};
 pub use entry::Entry;
 pub use error::{Error, Result};
 pub use format::Format;
@@ -225,13 +227,11 @@ pub fn default_archive_path(sources: &[PathBuf], format: Format) -> PathBuf {
     let parent = first.parent().unwrap_or(Path::new("."));
     let base = if sources.len() == 1 {
         let name = first.file_name().map(|n| n.to_string_lossy().into_owned());
-        if first.is_dir() {
-            name
-        } else if let Some(n) = name.filter(|n| Format::from_name(n).is_some()) {
-            // Réarchiver `photos.tar.gz` donne `photos.zip`, pas `photos.tar.zip`.
-            Some(Format::strip_extension(&n).to_owned())
-        } else {
-            first.file_stem().map(|n| n.to_string_lossy().into_owned())
+        match name {
+            _ if first.is_dir() => name,
+            // Réarchiver `photos.tar.gz` (ou `photos.7z.001`) donne `photos.zip`, pas `photos.tar.zip`.
+            Some(n) if Format::strip_extension(&n) != n => Some(Format::strip_extension(&n).to_owned()),
+            _ => first.file_stem().map(|n| n.to_string_lossy().into_owned()),
         }
     } else {
         parent.file_name().map(|n| n.to_string_lossy().into_owned())

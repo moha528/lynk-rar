@@ -40,14 +40,23 @@ fn open(path: &Path, pw: Option<&str>) -> Result<ArchiveReader<Source>> {
 
 pub(super) fn list(path: &Path, pw: Option<&str>) -> Result<Vec<Entry>> {
     let reader = open(path, pw)?;
-    Ok(reader
-        .archive()
+    let archive = reader.archive();
+    // Un fichier est chiffré si le bloc qui porte ses données passe par AES.
+    let encrypted = |file: usize| {
+        let block = archive.stream_map.file_block_index.get(file).copied().flatten();
+        block
+            .and_then(|b| archive.blocks.get(b))
+            .is_some_and(|b| b.coders.iter().any(|c| c.encoder_method_id() == EncoderMethod::ID_AES256_SHA256))
+    };
+    Ok(archive
         .files
         .iter()
-        .filter(|f| !f.is_anti_item())
-        .map(|f| {
+        .enumerate()
+        .filter(|(_, f)| !f.is_anti_item())
+        .map(|(i, f)| {
             let mut e = Entry::new(f.name(), f.is_directory(), f.size());
             e.modified = modified(f).and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64);
+            e.encrypted = encrypted(i);
             e
         })
         .collect())

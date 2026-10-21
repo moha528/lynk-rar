@@ -81,7 +81,10 @@ pub struct ArchiveInfo {
     name: String,
     format: Format,
     format_label: &'static str,
+    /// Taille sur le disque, tous volumes compris.
     size: u64,
+    /// Nombre de volumes `.001`, `.002`… (1 pour une archive d'un seul tenant).
+    volumes: usize,
     entries: Vec<Entry>,
 }
 
@@ -91,9 +94,15 @@ pub async fn open_archive(path: String, password: Option<String>) -> CmdResult<A
         let p = PathBuf::from(&path);
         let format = Format::detect(&p)?;
         let entries = lynk_core::list(&p, password.as_deref())?;
+        let volumes = lynk_core::volumes(&p);
+        let mut size = 0;
+        for v in &volumes {
+            size += std::fs::metadata(v)?.len();
+        }
         Ok(ArchiveInfo {
             name: p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
-            size: std::fs::metadata(&p)?.len(),
+            size,
+            volumes: volumes.len().max(1),
             format,
             format_label: format.label(),
             entries,
@@ -195,16 +204,59 @@ pub async fn create(app: AppHandle, jobs: State<'_, Jobs>, req: CreateRequest) -
         };
         let parts = lynk_core::create(&sources, &dest, &opts, &progress)?;
         progress.flush();
-        let mut size = 0;
-        for p in &parts {
-            size += std::fs::metadata(p)?.len();
-        }
-        let paths = parts.iter().map(|p| p.to_string_lossy().into_owned()).collect();
-        Ok(Created { paths, size })
+        created(&parts)
     })
     .await;
     jobs.finish(job);
     result
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertRequest {
+    job: u32,
+    archive: String,
+    dest: String,
+    /// Mot de passe de l'archive d'origine.
+    password: Option<String>,
+    format: Format,
+    level: u32,
+    /// Mot de passe de la nouvelle archive.
+    new_password: Option<String>,
+    volume_size: Option<u64>,
+}
+
+#[tauri::command]
+pub async fn convert(app: AppHandle, jobs: State<'_, Jobs>, req: ConvertRequest) -> CmdResult<Created> {
+    let job = req.job;
+    let cancel = jobs.start(job);
+    let result = blocking(move || {
+        let progress = JobProgress::new(app, job, cancel);
+        let opts = lynk_core::ConvertOptions {
+            password: req.password,
+            create: CreateOptions {
+                format: req.format,
+                level: req.level,
+                password: req.new_password.filter(|p| !p.is_empty()),
+                volume_size: req.volume_size.filter(|&s| s > 0),
+            },
+        };
+        let parts = lynk_core::convert(Path::new(&req.archive), Path::new(&req.dest), &opts, &progress)?;
+        progress.flush();
+        created(&parts)
+    })
+    .await;
+    jobs.finish(job);
+    result
+}
+
+fn created(parts: &[PathBuf]) -> lynk_core::Result<Created> {
+    let mut size = 0;
+    for p in parts {
+        size += std::fs::metadata(p)?.len();
+    }
+    let paths = parts.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    Ok(Created { paths, size })
 }
 
 #[derive(Debug, Deserialize)]
@@ -432,6 +484,25 @@ pub async fn drag_native(window: tauri::WebviewWindow, files: Vec<PathBuf>) -> C
 #[tauri::command]
 pub fn reveal(path: String) -> CmdResult<()> {
     tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| CmdError::other(e.to_string()))
+}
+
+/// Propriétés Windows d'un fichier ou d'un dossier (feuille native, comme Alt+Entrée).
+#[tauri::command]
+pub fn properties(window: tauri::WebviewWindow, path: String) -> CmdResult<()> {
+    #[cfg(windows)]
+    {
+        let hwnd = window.hwnd().map_err(|e| CmdError::other(e.to_string()))?.0 as isize;
+        window
+            .run_on_main_thread(move || {
+                let _ = crate::win::properties(hwnd, &path);
+            })
+            .map_err(|e| CmdError::other(e.to_string()))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, path);
+        Ok(())
+    }
 }
 
 #[tauri::command]

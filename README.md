@@ -24,7 +24,8 @@ Lynk remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fi
   - historique, recherche, glisser-déposer dans les deux sens.
 - **Extraction intelligente** : un seul élément à la racine est déposé à côté de l'archive, sinon tout va dans un dossier à son nom. Il est aussi possible d'extraire seulement une sélection.
 - **Modification d'archives** : ajout et suppression de fichiers. En ZIP, les entrées conservées sont recopiées sans recompression.
-- **Volumes** `.001`, `.002`… au format de 7-Zip, test d'intégrité, archives récentes.
+- **Conversion** d'un format à l'autre (RAR → 7z, ZIP → TAR.ZST…), l'original étant conservé.
+- **Volumes** `.001`, `.002`… au format de 7-Zip, test d'intégrité, propriétés détaillées (Alt+Entrée), archives récentes.
 - **Intégration Windows** :
   - menu contextuel principal de Windows 11, via `IExplorerCommand` et un package MSIX « sparse » ;
   - aperçu du contenu des archives dans le volet de visualisation, via `IPreviewHandler` ;
@@ -32,11 +33,12 @@ Lynk remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fi
   - notifications natives ;
   - icônes du système, thème clair ou sombre, couleur d'accent.
 - **Liste rapide** : affichage virtualisé (des dizaines de milliers de fichiers), colonnes redimensionnables, interface qui s'adapte à toutes les largeurs de fenêtre.
-- **CLI** : `lynk list | extract | create | test`.
+- **Mises à jour** : Lynk signale les nouvelles versions publiées sur GitHub, sans rien installer sans vous.
+- **CLI** : `lynk list | extract | create | convert | test`.
 
 ## Installation
 
-Téléchargez l'installeur dans les [Releases](https://github.com/moha528/lynk-rar/releases).
+Téléchargez l'installeur dans les [Releases](https://github.com/moha528/lynk-rar/releases). Chaque version liste ses changements dans le [journal des modifications](CHANGELOG.md) et donne les sommes SHA-256 de ses fichiers.
 
 > L'intégration à l'Explorateur (menu contextuel, aperçu) exige un package signé par un certificat reconnu par Windows. Tant que les versions publiées ne sont pas signées, Lynk fonctionne, mais sans cette intégration. Voir [packaging/README.md](packaging/README.md).
 
