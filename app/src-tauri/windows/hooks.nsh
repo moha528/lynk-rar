@@ -18,13 +18,20 @@
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; Échoue sans bloquer l'installation si le certificat n'est pas approuvé sur
-  ; la machine : Lynk marche alors, simplement sans intégration à l'Explorateur.
-  nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Add-AppxPackage -Path '$INSTDIR\Lynk.msix' -ExternalLocation '$INSTDIR'"`
+  ; Échoue sans bloquer l'installation si le certificat n'est pas approuvé sur la
+  ; machine. Lynk pose alors un menu contextuel classique (« Afficher plus
+  ; d'options »), qui n'a besoin d'aucune signature ; sinon, il retire ce repli.
+  nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Add-AppxPackage -Path '$INSTDIR\Lynk.msix' -ExternalLocation '$INSTDIR' -ErrorAction Stop } catch { $$_; exit 1 }"`
+  Pop $0
+  StrCmp $0 "0" 0 +3
+    ExecWait `"$INSTDIR\lynk-app.exe" --unregister-classic-menu`
+    Goto +2
+  ExecWait `"$INSTDIR\lynk-app.exe" --register-classic-menu`
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
   nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-AppxPackage -Name Lynk | Remove-AppxPackage"`
+  ExecWait `"$INSTDIR\lynk-app.exe" --unregister-classic-menu`
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL

@@ -4,31 +4,42 @@ Les changements notables de Lynk. Le format suit [Keep a Changelog](https://keep
 
 ## [Non publié]
 
-### Ajouté
+## [0.1.0] - 2026-10-21
 
-- **Conversion d'archives** vers un autre format (RAR → 7z, ZIP → TAR.ZST…), une ou plusieurs à la fois, avec ou sans chiffrement. L'original est conservé. Aussi en ligne de commande : `lynk convert`.
-- **Propriétés de l'archive** (Alt+Entrée) : format, volumes, taille, taux de compression, nombre de fichiers, chiffrement, dates, sélection.
-- **Propriétés Windows** des fichiers et dossiers du disque, la feuille native de l'Explorateur.
-- **Mises à jour** : Lynk signale une nouvelle version publiée sur GitHub (une fois par jour au plus, désactivable dans les paramètres).
-- **Publication automatisée** : un tag `v*` fabrique l'installeur et le CLI et prépare une version en brouillon.
-- **Archives imbriquées** : une archive contenue dans une autre s'ouvre sur place, comme un dossier (en lecture seule), avec un chemin complet dans la barre d'adresse.
-- **Aperçu rapide** (Espace) des images et des textes, sur le disque comme dans une archive ; ← et → passent au fichier voisin.
-- **Sommes de contrôle** CRC32 et SHA-256, avec vérification d'une somme collée et copie au format de `sha256sum`.
-- **Une archive par élément** : option de « Nouvelle archive » pour plusieurs fichiers ou dossiers.
+Première préversion publique.
 
-### Modifié
+### Archives
 
-- La progression d'une modification d'archive 7z ou TAR (extraction puis recompression) tient désormais sur une seule barre.
-- La taille d'une archive en volumes compte tous ses volumes.
-- Un mot de passe saisi n'est plus redemandé en revenant à une archive pendant la session.
+- ZIP, 7z, TAR, TAR.GZ, TAR.BZ2, TAR.XZ et TAR.ZST en lecture et en écriture ; RAR en lecture seule (licence UnRAR).
+- Chiffrement AES-256 en ZIP et 7z (noms de fichiers compris en 7z).
+- Extraction sûre (chemins assainis), intelligente (un seul élément à la racine : à côté de l'archive, sinon dans un dossier à son nom) et partielle.
+- Ajout et suppression de fichiers dans une archive existante ; en ZIP, sans recompresser le reste.
+- Volumes `.001`, `.002`… au format de 7-Zip, test d'intégrité.
+- Conversion d'un format à l'autre (RAR → 7z, ZIP → TAR.ZST…), l'original étant conservé.
+- Archives imbriquées ouvertes sur place, comme un dossier.
 
-### Corrigé
+### Application
 
-- Les fichiers chiffrés d'une archive 7z sont signalés (cadenas, propriétés), comme en ZIP et en RAR.
+- Explorateur de fichiers : Accueil, accès rapide, lecteurs, archives récentes ; une archive s'ouvre comme un dossier.
+- Liste virtualisée, colonnes redimensionnables, interface adaptée aux fenêtres étroites, thème clair ou sombre, effet Mica.
+- Aperçu rapide (Espace) des images et des textes ; propriétés détaillées d'une archive (Alt+Entrée) et feuille de propriétés de Windows pour les fichiers.
+- Sommes de contrôle CRC32 et SHA-256, avec vérification d'une somme collée.
+- « Nouvelle archive » : format, niveau, mot de passe, volumes, une archive par élément.
+- Glisser-déposer dans les deux sens, icônes du système, notifications.
+- Paramètres : démarrage, fichiers cachés, extraction, compression, associations de fichiers, entrées du menu contextuel, mises à jour.
+- Annonce des nouvelles versions publiées sur GitHub (une fois par jour au plus, désactivable).
 
-## [0.1.0] - 2026-10-20
+### Intégration à Windows
 
-Première version publique : moteur ZIP, 7z, TAR (gz, bz2, xz, zst) et RAR en lecture ; explorateur de fichiers avec archives ouvertes comme des dossiers ; menu contextuel de Windows 11 ; aperçu dans le volet de l'Explorateur ; associations de fichiers ; CLI.
+- Menu contextuel principal de Windows 11 (`IExplorerCommand`, package MSIX « sparse »).
+- Menu contextuel classique de repli, posé par l'installeur quand le package n'a pas pu être enregistré.
+- Aperçu du contenu des archives dans le volet de visualisation de l'Explorateur.
+- Installeur NSIS par utilisateur, sans droits d'administrateur.
 
-[Non publié]: https://github.com/moha528/lynk-rar/compare/c54e151...HEAD
-[0.1.0]: https://github.com/moha528/lynk-rar/commit/c54e151
+### Outils
+
+- CLI `lynk` : `list`, `extract`, `create`, `convert`, `test`, `formats`.
+- Publication automatisée : un tag `v*` fabrique l'installeur et le CLI et prépare une version en brouillon.
+
+[Non publié]: https://github.com/moha528/lynk-rar/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/moha528/lynk-rar/releases/tag/v0.1.0

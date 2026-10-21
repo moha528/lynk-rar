@@ -141,6 +141,96 @@ pub fn register_file_types(exts: Vec<String>, enable: bool) -> CmdResult<()> {
     Ok(())
 }
 
+/// Extensions qui reçoivent le sous-menu d'extraction du menu classique.
+#[cfg(windows)]
+const ARCHIVE_EXTS: &[&str] =
+    &[".zip", ".jar", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".tbz2", ".xz", ".txz", ".zst", ".tzst", ".001"];
+#[cfg(windows)]
+const CLASSIC_ARCHIVE_VERB: &str = "Lynk.Archive";
+#[cfg(windows)]
+const CLASSIC_COMPRESS_VERB: &str = "Lynk.Compress";
+
+/// Menu contextuel classique (« Afficher plus d'options ») : de simples verbes de
+/// registre, sans DLL ni package signé. C'est le repli de l'installeur quand le
+/// package MSIX n'a pas pu être enregistré (certificat non approuvé).
+#[cfg(windows)]
+pub fn set_classic_menu(enable: bool) -> std::io::Result<()> {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    let classes = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey_with_flags(r"Software\Classes", winreg::enums::KEY_READ | winreg::enums::KEY_WRITE)?;
+    let archive_keys: Vec<String> =
+        ARCHIVE_EXTS.iter().map(|e| format!(r"SystemFileAssociations\{e}\shell\{CLASSIC_ARCHIVE_VERB}")).collect();
+    let compress_keys = [r"*\shell", r"Directory\shell"].map(|k| format!(r"{k}\{CLASSIC_COMPRESS_VERB}"));
+    for key in archive_keys.iter().chain(&compress_keys) {
+        let _ = classes.delete_subkey_all(key);
+    }
+    if enable {
+        let exe = std::env::current_exe()?;
+        let exe = exe.display();
+        // Sous-menu en cascade : MUIVerb + SubCommands vide, entrées triées par nom de clé.
+        let menu = |key: &str, title: &str, entries: &[(&str, &str, &str)]| -> std::io::Result<()> {
+            let (root, _) = classes.create_subkey(key)?;
+            root.set_value("MUIVerb", &title)?;
+            root.set_value("Icon", &format!("{exe},0"))?;
+            root.set_value("SubCommands", &"")?;
+            for (id, label, args) in entries {
+                let (item, _) = root.create_subkey(format!(r"shell\{id}"))?;
+                item.set_value("MUIVerb", label)?;
+                let (cmd, _) = item.create_subkey("command")?;
+                cmd.set_value("", &format!("\"{exe}\" {args} \"%1\""))?;
+            }
+            Ok(())
+        };
+        for key in &archive_keys {
+            menu(
+                key,
+                "Lynk",
+                &[
+                    ("1here", "Extraire ici", "--extract-here"),
+                    ("2named", "Extraire dans un dossier à son nom", "--extract-named"),
+                    ("3to", "Extraire vers…", "--extract-to"),
+                    ("4open", "Ouvrir avec Lynk", ""),
+                ],
+            )?;
+        }
+        for key in &compress_keys {
+            menu(
+                key,
+                "Compresser avec Lynk",
+                &[
+                    ("1zip", "Ajouter à une archive ZIP", "--compress zip"),
+                    ("27z", "Ajouter à une archive 7z", "--compress 7z"),
+                    ("3dialog", "Ajouter à une archive…", "--compress-dialog"),
+                ],
+            )?;
+        }
+    }
+    crate::win::notify_assoc_changed();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn classic_menu_status() -> bool {
+    #[cfg(windows)]
+    {
+        use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+        RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey(format!(r"Software\Classes\Directory\shell\{CLASSIC_COMPRESS_VERB}"))
+            .is_ok()
+    }
+    #[cfg(not(windows))]
+    false
+}
+
+#[tauri::command]
+pub fn set_classic_menu_enabled(enable: bool) -> CmdResult<()> {
+    #[cfg(windows)]
+    set_classic_menu(enable).map_err(|e| CmdError::other(e.to_string()))?;
+    #[cfg(not(windows))]
+    let _ = enable;
+    Ok(())
+}
+
 /// Page « Applications par défaut » de Windows, directement sur Lynk.
 #[tauri::command]
 pub fn open_default_apps() -> CmdResult<()> {

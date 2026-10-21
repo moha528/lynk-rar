@@ -199,6 +199,9 @@ export const api = {
   setContextMenuHidden: (mask: number) => invoke<void>("set_context_menu_hidden", { mask }),
   fileTypesStatus: (exts: string[]) => invoke<Record<string, FileTypeStatus>>("file_types_status", { exts }),
   registerFileTypes: (exts: string[], enable: boolean) => invoke<void>("register_file_types", { exts, enable }),
+  /** Menu contextuel classique (« Afficher plus d'options »), sans package signé. */
+  classicMenuStatus: () => invoke<boolean>("classic_menu_status"),
+  setClassicMenu: (enable: boolean) => invoke<void>("set_classic_menu_enabled", { enable }),
   openDefaultApps: () => invoke<void>("open_default_apps"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
 };

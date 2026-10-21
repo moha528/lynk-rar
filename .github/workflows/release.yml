@@ -90,5 +90,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ steps.version.outputs.version }}"
+          # Notes : la section de cette version dans CHANGELOG.md, puis l'installation.
+          $changelog = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $pattern = "(?ms)^## \[$([regex]::Escape($version))\][^\n]*\n(.*?)(?=^## \[|^\[)"
+          if ($changelog -notmatch $pattern) { throw "Section [$version] introuvable dans CHANGELOG.md." }
+          $notes = $Matches[1].Trim() + @"
+
+
+          ## Installation
+
+          Téléchargez ``Lynk_${version}_x64-setup.exe`` et lancez-le : l'installation se fait pour votre compte, sans droits d'administrateur.
+
+          Cette version n'est pas signée. Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Les sommes SHA-256 des fichiers sont dans ``SHA256SUMS.txt``.
+
+          Sans signature, l'entrée Lynk se trouve dans « Afficher plus d'options » (Maj+F10) du menu contextuel.
+          "@
+          $notesFile = Join-Path $env:RUNNER_TEMP "notes.md"
+          [IO.File]::WriteAllText($notesFile, ($notes -replace '(?m)^          ', ''), [Text.UTF8Encoding]::new($false))
           gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist-release -File).FullName `
-            --draft --title "Lynk $version" --generate-notes --verify-tag
+            --draft --title "Lynk $version" --notes-file $notesFile --verify-tag

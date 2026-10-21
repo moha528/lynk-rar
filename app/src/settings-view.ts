@@ -243,6 +243,13 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
         )),
         menu,
       ),
+      card(
+        "Menu contextuel classique",
+        "Entrées Lynk dans « Afficher plus d'options ». L'installeur l'active quand le menu principal de Windows 11 n'a pas pu être installé (version non signée).",
+        toggle(await api.classicMenuStatus().catch(() => false), (v) => {
+          api.setClassicMenu(v).catch((e) => alertError("Menu classique", errorMessage(e)));
+        }, "Menu contextuel classique"),
+      ),
     ),
   );
 

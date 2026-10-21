@@ -345,8 +345,12 @@ pub fn properties(hwnd: isize, path: &str) -> windows_core::Result<()> {
 mod tests {
     use super::*;
 
+    /// Les appels au shell en parallèle (icônes, noms) échouent par intermittence entre tests.
+    static SHELL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn places_have_native_names_and_icons() {
+        let _shell = SHELL.lock().unwrap_or_else(|e| e.into_inner());
         with_com(|| {
             let folders = known_folders();
             assert!(folders.len() >= 3, "{folders:?}");
@@ -369,6 +373,7 @@ mod tests {
 
     #[test]
     fn shell_icons_are_valid_png() {
+        let _shell = SHELL.lock().unwrap_or_else(|e| e.into_inner());
         with_com(|| {
             for key in [".txt", ".zip", "/", ""] {
                 let png = type_icon_png(key).unwrap_or_else(|| panic!("pas d'icône pour {key:?}"));

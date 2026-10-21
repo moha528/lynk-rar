@@ -41,7 +41,9 @@ Lynk remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fi
 
 Téléchargez l'installeur dans les [Releases](https://github.com/moha528/lynk-rar/releases). Chaque version liste ses changements dans le [journal des modifications](CHANGELOG.md) et donne les sommes SHA-256 de ses fichiers.
 
-> L'intégration à l'Explorateur (menu contextuel, aperçu) exige un package signé par un certificat reconnu par Windows. Tant que les versions publiées ne sont pas signées, Lynk fonctionne, mais sans cette intégration. Voir [packaging/README.md](packaging/README.md).
+> **Versions non signées.** Lynk n'a pas encore de certificat de signature de code. Windows SmartScreen peut donc afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Vérifiez au besoin l'installeur avec `SHA256SUMS.txt`.
+>
+> Pour la même raison, le menu principal de Windows 11 et l'aperçu dans l'Explorateur ne s'installent pas : l'installeur pose à la place un menu classique, dans « Afficher plus d'options » (Maj+F10). Voir [packaging/README.md](packaging/README.md).
 
 ## Compiler depuis les sources
 

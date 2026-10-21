@@ -14,6 +14,16 @@ mod win;
 use tauri::{LogicalSize, Manager};
 
 fn main() {
+    // Appels de l'installeur : on agit sur le registre et on quitte, sans fenêtre.
+    #[cfg(windows)]
+    if let Some(enable) = std::env::args().nth(1).and_then(|a| match a.as_str() {
+        "--register-classic-menu" => Some(true),
+        "--unregister-classic-menu" => Some(false),
+        _ => None,
+    }) {
+        std::process::exit(if settings::set_classic_menu(enable).is_ok() { 0 } else { 1 });
+    }
+
     let launch = launch::Launch::from_args(std::env::args_os().skip(1));
     let task = launch.is_task();
 
@@ -71,6 +81,8 @@ fn main() {
             settings::set_context_menu_hidden,
             settings::file_types_status,
             settings::register_file_types,
+            settings::classic_menu_status,
+            settings::set_classic_menu_enabled,
             settings::open_default_apps,
             settings::open_url,
         ])
