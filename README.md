@@ -105,3 +105,21 @@ Les contributions sont bienvenues : lisez [CONTRIBUTING.md](CONTRIBUTING.md). Le
 ## Licence
 
 WinSAR est distribué sous licence [MIT](LICENSE). L'extraction RAR repose sur le code UnRAR d'Alexander Roshal, sous sa propre licence : voir [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+## Code signing policy
+
+Free code signing for Windows releases will be provided by [SignPath.io](https://about.signpath.io/), with a certificate by the [SignPath Foundation](https://signpath.org/) (application in progress). Until then, releases are unsigned.
+
+- Every signed file is built from this repository by the [release workflow](.github/workflows/release.yml) on GitHub Actions, never on a personal machine.
+- Committers and reviewers: [moha528](https://github.com/moha528). Approvers: [moha528](https://github.com/moha528).
+- Signing requests are approved manually, for tagged releases only.
+
+*Politique de signature : les versions Windows seront signées gratuitement par SignPath.io, avec un certificat de la SignPath Foundation (demande en cours). Chaque fichier signé est compilé depuis ce dépôt par GitHub Actions.*
+
+## Privacy
+
+WinSAR does not collect, store or transmit personal data. It sends no telemetry and has no account.
+
+The only network request it makes is the update check: at most once a day, WinSAR reads the latest release from the public GitHub API (`api.github.com/repos/moha528/winsar/releases/latest`). Nothing about you or your files is sent; GitHub sees an ordinary request from your IP address, as for any visit. You can turn it off in Settings › Updates.
+
+*Confidentialité : WinSAR ne collecte, ne stocke ni ne transmet aucune donnée personnelle. Sa seule requête réseau est la recherche de mise à jour, une fois par jour au plus, désactivable dans Paramètres › Mises à jour.*
