@@ -3,8 +3,8 @@
 
 use std::{ffi::OsString, path::PathBuf};
 
-use lynk_core::Format;
 use serde::Serialize;
+use winsar_core::Format;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]

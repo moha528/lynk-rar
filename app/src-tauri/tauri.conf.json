@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Lynk",
-  "mainBinaryName": "lynk-app",
+  "productName": "WinSAR",
+  "mainBinaryName": "winsar-app",
   "version": "0.1.0",
-  "identifier": "dev.lynk.app",
+  "identifier": "dev.winsar.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Lynk",
+        "title": "WinSAR",
         "width": 1000,
         "height": 640,
         "minWidth": 640,
@@ -42,7 +42,7 @@
     "fileAssociations": [
       {
         "ext": ["zip", "7z", "rar", "tar", "tgz", "tbz2", "txz", "tzst", "gz", "bz2", "xz", "zst"],
-        "name": "Lynk.Archive",
+        "name": "WinSAR.Archive",
         "description": "Archive",
         "role": "Viewer"
       }

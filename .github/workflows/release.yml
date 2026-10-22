@@ -21,7 +21,7 @@ jobs:
         shell: pwsh
         run: |
           . ./packaging/common.ps1
-          $version = Get-LynkVersion
+          $version = Get-WinSARVersion
           if ("v$version" -ne $env:GITHUB_REF_NAME) {
             throw "Le tag $env:GITHUB_REF_NAME ne correspond pas à la version $version de Cargo.toml (packaging/set-version.ps1)."
           }
@@ -43,29 +43,29 @@ jobs:
         run: npm ci
 
       # Facultatif : un vrai certificat de signature de code, en secrets du dépôt
-      # (LYNK_CERT_PFX en base64, LYNK_CERT_PASSWORD). Sans lui, le package MSIX est
-      # signé par un certificat jetable : Lynk s'installe et marche, mais sans
+      # (WINSAR_CERT_PFX en base64, WINSAR_CERT_PASSWORD). Sans lui, le package MSIX est
+      # signé par un certificat jetable : WinSAR s'installe et marche, mais sans
       # l'intégration à l'Explorateur (voir packaging/README.md).
       - name: Certificat de signature
         shell: pwsh
         env:
-          LYNK_CERT_PFX: ${{ secrets.LYNK_CERT_PFX }}
-          LYNK_CERT_PASSWORD: ${{ secrets.LYNK_CERT_PASSWORD }}
+          WINSAR_CERT_PFX: ${{ secrets.WINSAR_CERT_PFX }}
+          WINSAR_CERT_PASSWORD: ${{ secrets.WINSAR_CERT_PASSWORD }}
         run: |
-          if (-not $env:LYNK_CERT_PFX) { Write-Host "Pas de certificat fourni : certificat jetable."; exit 0 }
-          $pfx = Join-Path $env:RUNNER_TEMP "lynk.pfx"
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:LYNK_CERT_PFX))
-          $password = ConvertTo-SecureString $env:LYNK_CERT_PASSWORD -AsPlainText -Force
+          if (-not $env:WINSAR_CERT_PFX) { Write-Host "Pas de certificat fourni : certificat jetable."; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP "winsar.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINSAR_CERT_PFX))
+          $password = ConvertTo-SecureString $env:WINSAR_CERT_PASSWORD -AsPlainText -Force
           $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
           Remove-Item $pfx
-          "LYNK_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          "WINSAR_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
 
       - name: Installeur (NSIS, avec l'intégration à l'Explorateur)
         working-directory: app
         run: npm run bundle
 
       - name: CLI
-        run: cargo build --release -p lynk-cli
+        run: cargo build --release -p winsar-cli
 
       - name: Fichiers de la version
         id: files
@@ -75,11 +75,11 @@ jobs:
           $out = New-Item -ItemType Directory -Force dist-release
           $setup = Get-ChildItem target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           if (-not $setup) { throw "Installeur introuvable dans target/release/bundle/nsis." }
-          Copy-Item $setup.FullName (Join-Path $out "Lynk_${version}_x64-setup.exe")
+          Copy-Item $setup.FullName (Join-Path $out "WinSAR_${version}_x64-setup.exe")
           $cli = Join-Path $env:RUNNER_TEMP "cli"
           New-Item -ItemType Directory -Force $cli | Out-Null
-          Copy-Item target/release/lynk.exe, LICENSE, THIRD-PARTY-NOTICES.md $cli
-          Compress-Archive -Path "$cli/*" -DestinationPath (Join-Path $out "lynk-cli_${version}_x64.zip")
+          Copy-Item target/release/winsar.exe, LICENSE, THIRD-PARTY-NOTICES.md $cli
+          Compress-Archive -Path "$cli/*" -DestinationPath (Join-Path $out "winsar-cli_${version}_x64.zip")
           Get-ChildItem $out -File | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
           } | Set-Content (Join-Path $out "SHA256SUMS.txt") -Encoding ascii
@@ -99,13 +99,13 @@ jobs:
 
           ## Installation
 
-          Téléchargez ``Lynk_${version}_x64-setup.exe`` et lancez-le : l'installation se fait pour votre compte, sans droits d'administrateur.
+          Téléchargez ``WinSAR_${version}_x64-setup.exe`` et lancez-le : l'installation se fait pour votre compte, sans droits d'administrateur.
 
           Cette version n'est pas signée. Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Les sommes SHA-256 des fichiers sont dans ``SHA256SUMS.txt``.
 
-          Sans signature, l'entrée Lynk se trouve dans « Afficher plus d'options » (Maj+F10) du menu contextuel.
+          Sans signature, l'entrée WinSAR se trouve dans « Afficher plus d'options » (Maj+F10) du menu contextuel.
           "@
           $notesFile = Join-Path $env:RUNNER_TEMP "notes.md"
           [IO.File]::WriteAllText($notesFile, ($notes -replace '(?m)^          ', ''), [Text.UTF8Encoding]::new($false))
           gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist-release -File).FullName `
-            --draft --title "Lynk $version" --notes-file $notesFile --verify-tag
+            --draft --title "WinSAR $version" --notes-file $notesFile --verify-tag

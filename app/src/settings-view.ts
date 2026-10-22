@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 import { api, errorMessage, type FormatInfo, type Overwrite } from "./api";
 import logoUrl from "../app-icon.svg";
-import { applyAppearance, MENU_ENTRIES, settings, updateSettings, type StartPlace, type Theme } from "./settings";
+import { applyAppearance, MENU_ENTRIES, settings, updateSettings, type AccentSource, type StartPlace, type Theme } from "./settings";
 import { alertError, button, Glyph, h } from "./ui";
 import { checkForUpdate, REPO_URL } from "./updates";
 
@@ -76,7 +76,7 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
   root.append(
     section(
       "Général",
-      card("Au démarrage, ouvrir", "Lynk est aussi un explorateur de fichiers : choisissez où il s'ouvre.", startSel, startSub),
+      card("Au démarrage, ouvrir", "WinSAR est aussi un explorateur de fichiers : choisissez où il s'ouvre.", startSel, startSub),
       card("Fichiers cachés", "Afficher les fichiers et dossiers cachés ou système.", toggle(s.showHidden, (v) => updateSettings({ showHidden: v }), "Fichiers cachés")),
     ),
   );
@@ -107,10 +107,39 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
       ),
     ),
   );
+  const accents = h(
+    "div",
+    { class: "segmented", role: "radiogroup" },
+    ...([
+      ["winsar", "WinSAR"],
+      ["windows", "Windows"],
+    ] as [AccentSource, string][]).map(([v, l]) =>
+      h(
+        "button",
+        {
+          type: "button",
+          class: `seg${s.accent === v ? " on" : ""}`,
+          role: "radio",
+          "aria-checked": s.accent === v ? "true" : "false",
+          onclick: (e: MouseEvent) => {
+            updateSettings({ accent: v });
+            void applyAppearance();
+            for (const b of accents.children) {
+              b.classList.toggle("on", b === e.currentTarget);
+              b.setAttribute("aria-checked", b === e.currentTarget ? "true" : "false");
+            }
+          },
+        },
+        h("span", { class: `swatch swatch-${v}`, "aria-hidden": "true" }),
+        l,
+      ),
+    ),
+  );
   root.append(
     section(
       "Apparence",
       card("Thème", "Suivre Windows ou forcer le mode clair ou sombre.", themes),
+      card("Couleur d'accent", "Celle de WinSAR, ou celle choisie dans Windows. Elle est ajustée pour rester lisible dans les deux thèmes.", accents),
       card("Effet Mica", "Laisser transparaître le fond d'écran derrière la fenêtre (Windows 11).", toggle(s.mica, (v) => {
         updateSettings({ mica: v });
         void applyAppearance();
@@ -196,7 +225,7 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
       await refreshTypes();
     },
   });
-  const defaults = button("Choisir Lynk par défaut…", { variant: "accent", glyph: Glyph.reveal, onclick: () => void api.openDefaultApps() });
+  const defaults = button("Choisir WinSAR par défaut…", { variant: "accent", glyph: Glyph.reveal, onclick: () => void api.openDefaultApps() });
 
   const menu = h(
     "div",
@@ -228,7 +257,7 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
         h("div", { class: "setting-text" }, h("div", { class: "setting-title" }, "Associations de fichiers"), h(
           "div",
           { class: "setting-desc" },
-          "Cochez les types que Lynk doit savoir ouvrir. Windows réserve à l'utilisateur le choix de l'application par défaut : confirmez-le ensuite dans Paramètres.",
+          "Cochez les types que WinSAR doit savoir ouvrir. Windows réserve à l'utilisateur le choix de l'application par défaut : confirmez-le ensuite dans Paramètres.",
         )),
         types,
         h("div", { class: "row" }, defaults, all),
@@ -239,13 +268,13 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
         h("div", { class: "setting-text" }, h("div", { class: "setting-title" }, "Menu contextuel de l'Explorateur"), h(
           "div",
           { class: "setting-desc" },
-          "Entrées affichées dans le sous-menu « Lynk ». Effet immédiat, sans redémarrer l'Explorateur.",
+          "Entrées affichées dans le sous-menu « WinSAR ». Effet immédiat, sans redémarrer l'Explorateur.",
         )),
         menu,
       ),
       card(
         "Menu contextuel classique",
-        "Entrées Lynk dans « Afficher plus d'options ». L'installeur l'active quand le menu principal de Windows 11 n'a pas pu être installé (version non signée).",
+        "Entrées WinSAR dans « Afficher plus d'options ». L'installeur l'active quand le menu principal de Windows 11 n'a pas pu être installé (version non signée).",
         toggle(await api.classicMenuStatus().catch(() => false), (v) => {
           api.setClassicMenu(v).catch((e) => alertError("Menu classique", errorMessage(e)));
         }, "Menu contextuel classique"),
@@ -270,11 +299,11 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
         const status = await checkForUpdate();
         if (status.available && status.latest) {
           const latest = status.latest;
-          updateText.textContent = `Lynk ${latest.version} est disponible (vous avez la ${status.current}).`;
+          updateText.textContent = `WinSAR ${latest.version} est disponible (vous avez la ${status.current}).`;
           updateActions.hidden = false;
           updateActions.replaceChildren(button("Voir la nouvelle version", { variant: "accent", glyph: Glyph.reveal, onclick: () => void api.openUrl(latest.url) }));
         } else {
-          updateText.textContent = status.latest ? `Lynk ${status.current} est à jour.` : "Aucune version publiée pour l'instant.";
+          updateText.textContent = status.latest ? `WinSAR ${status.current} est à jour.` : "Aucune version publiée pour l'instant.";
         }
       } catch (e) {
         updateText.textContent = `Vérification impossible : ${errorMessage(e)}`;
@@ -288,7 +317,7 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
       "Mises à jour",
       card(
         "Rechercher les mises à jour au démarrage",
-        "Une fois par jour au plus, Lynk lit la dernière version publiée sur GitHub. Rien n'est envoyé ni installé sans vous.",
+        "Une fois par jour au plus, WinSAR lit la dernière version publiée sur GitHub. Rien n'est envoyé ni installé sans vous.",
         toggle(s.checkUpdates, (v) => updateSettings({ checkUpdates: v }), "Mises à jour automatiques"),
       ),
       h(
@@ -310,12 +339,12 @@ export async function renderSettings(formats: FormatInfo[]): Promise<HTMLElement
         h(
           "div",
           { class: "setting-text" },
-          h("div", { class: "setting-title" }, `Lynk ${version}`),
+          h("div", { class: "setting-title" }, `WinSAR ${version}`),
           h("div", { class: "setting-desc" }, "Archives rapides, natives et libres pour Windows. Logiciel libre sous licence MIT."),
           h(
             "div",
             { class: "setting-desc small" },
-            "Extraction RAR grâce au code source UnRAR © Alexander Roshal, utilisé selon sa licence (lecture seule : Lynk ne crée pas d'archives RAR).",
+            "Extraction RAR grâce au code source UnRAR © Alexander Roshal, utilisé selon sa licence (lecture seule : WinSAR ne crée pas d'archives RAR).",
           ),
         ),
         h(

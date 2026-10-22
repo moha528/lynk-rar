@@ -1,11 +1,11 @@
 ﻿<#
 .SYNOPSIS
-  Installe (ou désinstalle) le menu contextuel Windows 11 de Lynk, pour le développement.
+  Installe (ou désinstalle) le menu contextuel Windows 11 de WinSAR, pour le développement.
 
 .DESCRIPTION
   Signe le package sparse avec le certificat de développement, l'approuve sur
   la machine (UAC, une fois), puis l'enregistre en pointant vers target\<Configuration>,
-  où se trouvent lynk-app.exe et lynk_shell.dll. L'installeur NSIS fait la même chose
+  où se trouvent winsar-app.exe et winsar_shell.dll. L'installeur NSIS fait la même chose
   pour une installation normale, voir README.md.
 
 .PARAMETER Configuration
@@ -43,27 +43,27 @@ function Restart-Explorer {
   if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer }
 }
 
-$existing = Get-AppxPackage -Name "Lynk"
+$existing = Get-AppxPackage -Name "WinSAR"
 if ($existing) {
   Write-Host "Retrait de la version installée ($($existing.Version))…"
   $existing | Remove-AppxPackage
 }
 if ($Uninstall) {
   if ($RestartExplorer) { Restart-Explorer }
-  Write-Host "Menu contextuel Lynk désinstallé."
+  Write-Host "Menu contextuel WinSAR désinstallé."
   return
 }
 
 $Bin = Join-Path $Root "target\$Configuration"
-foreach ($file in "lynk-app.exe", "lynk_shell.dll", "lynk_preview.dll") {
+foreach ($file in "winsar-app.exe", "winsar_shell.dll", "winsar_preview.dll") {
   if (-not (Test-Path (Join-Path $Bin $file))) {
     throw "$file absent de $Bin. Compilez d'abord, voir packaging\README.md."
   }
 }
 
-$cert = Get-LynkCertificate
-Confirm-LynkTrust $cert
-$msix = New-LynkMsix $cert
+$cert = Get-WinSARCertificate
+Confirm-WinSARTrust $cert
+$msix = New-WinSARMsix $cert
 Add-AppxPackage -Path $msix -ExternalLocation $Bin
 if ($RestartExplorer) { Restart-Explorer }
-Write-Host "Menu contextuel Lynk installé, binaires : $Bin"
+Write-Host "Menu contextuel WinSAR installé, binaires : $Bin"

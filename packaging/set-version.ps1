@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  Change la version de Lynk partout où elle figure.
+  Change la version de WinSAR partout où elle figure.
 
 .DESCRIPTION
   Cargo.toml ([workspace.package]) fait foi ; ce script y reporte la nouvelle
@@ -27,12 +27,12 @@ function Set-InFile([string] $Path, [string] $Pattern) {
   Write-Host "  $Path"
 }
 
-$old = Get-LynkVersion
-Write-Host "Lynk $old → $Version"
+$old = Get-WinSARVersion
+Write-Host "WinSAR $old → $Version"
 Set-InFile "Cargo.toml" '(?ms)(^\[workspace\.package\].*?^version\s*=\s*")[^"]+(")'
 Set-InFile "app/package.json" '(?m)(^  "version": ")[^"]+(")'
 # Racine du fichier et paquet "" : les deux entrées au nom de l'application.
-Set-InFile "app/package-lock.json" '("name": "lynk-app",\s*"version": ")[^"]+(")'
+Set-InFile "app/package-lock.json" '("name": "winsar-app",\s*"version": ")[^"]+(")'
 Set-InFile "app/src-tauri/tauri.conf.json" '(?m)(^  "version": ")[^"]+(")'
 
 & cargo update --workspace --offline --manifest-path (Join-Path $Root "Cargo.toml")

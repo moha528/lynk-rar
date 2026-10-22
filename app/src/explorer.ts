@@ -182,7 +182,7 @@ export async function startExplorer(root: HTMLElement, initial: { open?: string;
 }
 
 function announceUpdate(release: Release): void {
-  notice(`Lynk ${release.version} est disponible.`, [
+  notice(`WinSAR ${release.version} est disponible.`, [
     { label: "Voir", accent: true, run: () => void api.openUrl(release.url) },
     { label: "Plus tard", run: () => {} },
     { label: "Ignorer cette version", run: () => updateSettings({ skippedVersion: release.version }) },
@@ -637,7 +637,7 @@ async function render(select: string[] = []): Promise<void> {
   renderSidebar();
   await renderMain(select);
   renderStatus();
-  const title = state.loc.kind === "home" ? "Lynk" : state.loc.kind === "settings" ? "Paramètres – Lynk" : `${locName(state.loc)} – Lynk`;
+  const title = state.loc.kind === "home" ? "WinSAR" : state.loc.kind === "settings" ? "Paramètres – WinSAR" : `${locName(state.loc)} – WinSAR`;
   void getCurrentWindow().setTitle(title);
   ui.search.placeholder = state.loc.kind === "archive" ? `Rechercher dans ${state.opened?.info.name ?? "l'archive"}` : state.loc.kind === "fs" ? `Rechercher dans ${locName(state.loc)}` : "Rechercher";
   ui.search.disabled = state.loc.kind === "home" || state.loc.kind === "settings";
@@ -646,7 +646,7 @@ async function render(select: string[] = []): Promise<void> {
 function locName(loc: Loc): string {
   if (loc.kind === "fs") return placeName(loc.path) ?? fmt.baseName(loc.path.replace(/\\$/, "")) ?? loc.path;
   if (loc.kind === "archive") return loc.inner ? loc.inner.split("/").pop()! : fmt.baseName(loc.path);
-  return "Lynk";
+  return "WinSAR";
 }
 
 function placeName(path: string): string | null {
@@ -885,7 +885,7 @@ function homeView(): HTMLElement {
       "div",
       { class: "home-hero" },
       h("img", { src: logoUrl, class: "home-logo", alt: "" }),
-      h("div", {}, h("h1", {}, "Lynk"), h("p", { class: "muted" }, "Parcourez vos fichiers, ouvrez une archive comme un dossier, ou déposez des fichiers ici pour les archiver.")),
+      h("div", {}, h("h1", {}, "WinSAR"), h("p", { class: "muted" }, "Parcourez vos fichiers, ouvrez une archive comme un dossier, ou déposez des fichiers ici pour les archiver.")),
       h(
         "div",
         { class: "row home-actions" },
@@ -1044,7 +1044,7 @@ function fsMenu(rows: Row[]): (MenuItem | "-")[] {
   const base = fmt.baseName(paths.length === 1 ? (one!.isDir ? one!.key : stemOf(one!.key).replace(/\.[^.]+$/, "") || one!.key) : loc.path.replace(/\\$/, ""));
   const items: (MenuItem | "-")[] = [];
   if (one?.isArchive) {
-    items.push({ label: "Ouvrir dans Lynk", glyph: Glyph.archive, hint: "Entrée", action: () => void activate(one) });
+    items.push({ label: "Ouvrir dans WinSAR", glyph: Glyph.archive, hint: "Entrée", action: () => void activate(one) });
     items.push({ label: "Ouvrir avec l'application par défaut", glyph: Glyph.open, action: () => void api.openPath(one.key) });
   } else if (one) {
     items.push({ label: "Ouvrir", glyph: one.isDir ? Glyph.folder : Glyph.open, hint: "Entrée", action: () => void activate(one) });
@@ -1644,7 +1644,7 @@ async function archiveProperties(): Promise<void> {
   const crypt = encrypted === 0 ? "Aucun" : encrypted === files ? "Tous les fichiers" : `${n(encrypted)} fichiers sur ${n(files)}`;
   const dates = !Number.isFinite(oldest) ? "Inconnues" : oldest === newest ? fmt.date(oldest) : `Du ${fmt.date(oldest)} au ${fmt.date(newest)}`;
   const access =
-    loc.via ? "Lecture seule (archive dans une archive)" : info.format === "rar" ? "Lecture seule (Lynk ne crée pas d'archives RAR)" : info.volumes > 1 ? "Lecture seule (archive en volumes)" : "Ajout et suppression possibles";
+    loc.via ? "Lecture seule (archive dans une archive)" : info.format === "rar" ? "Lecture seule (WinSAR ne crée pas d'archives RAR)" : info.volumes > 1 ? "Lecture seule (archive en volumes)" : "Ajout et suppression possibles";
 
   const rows: [string, string][] = [
     ["Emplacement", loc.via ? `Dans ${locPath({ ...loc.via.outer, inner: parentEntry(loc.via.entry) })}` : fmt.parentDir(info.path)],

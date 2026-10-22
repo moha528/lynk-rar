@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <!-- Exploration : masques pour l'entrelacs (à remplacer par des tracés à la finalisation). -->
-  <defs>
-    <mask id="cut1"><rect width="256" height="256" fill="#fff"/><rect x="132" y="86" width="28" height="48" fill="#000"/></mask>
-    <mask id="cut2"><rect width="256" height="256" fill="#fff"/><rect x="86" y="132" width="48" height="28" fill="#000"/></mask>
-  </defs>
-  <path mask="url(#cut1)" fill-rule="evenodd" fill="currentColor" d="M76 36H120A40 40 0 0 1 160 76V120A40 40 0 0 1 120 160H76A40 40 0 0 1 36 120V76A40 40 0 0 1 76 36ZM76 64A12 12 0 0 0 64 76V120A12 12 0 0 0 76 132H120A12 12 0 0 0 132 120V76A12 12 0 0 0 120 64Z"/>
-  <path mask="url(#cut2)" fill-rule="evenodd" fill="currentColor" d="M136 96H180A40 40 0 0 1 220 136V180A40 40 0 0 1 180 220H136A40 40 0 0 1 96 180V136A40 40 0 0 1 136 96ZM136 124A12 12 0 0 0 124 136V180A12 12 0 0 0 136 192H180A12 12 0 0 0 192 180V136A12 12 0 0 0 180 124Z"/>
-</svg>

@@ -15,7 +15,7 @@ body:
       label: Étapes pour reproduire
       placeholder: |
         1. Clic droit sur une archive .7z
-        2. Lynk > Extraire ici
+        2. WinSAR > Extraire ici
         3. …
     validations:
       required: true
@@ -27,7 +27,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Version de Lynk
+      label: Version de WinSAR
       description: Paramètres > À propos.
     validations:
       required: true

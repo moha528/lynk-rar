@@ -9,9 +9,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use lynk_core::Progress;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
+use winsar_core::Progress;
 
 #[derive(Default)]
 pub struct Jobs(Mutex<HashMap<u32, Arc<AtomicBool>>>);

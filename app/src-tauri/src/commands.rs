@@ -4,9 +4,9 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use lynk_core::{CreateOptions, Entry, ExtractOptions, ExtractReport, Format, Overwrite, Selection};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
+use winsar_core::{CreateOptions, Entry, ExtractOptions, ExtractReport, Format, Overwrite, Selection};
 
 use crate::{
     jobs::{JobProgress, Jobs},
@@ -27,11 +27,11 @@ impl CmdError {
     }
 }
 
-impl From<lynk_core::Error> for CmdError {
-    fn from(e: lynk_core::Error) -> Self {
+impl From<winsar_core::Error> for CmdError {
+    fn from(e: winsar_core::Error) -> Self {
         let kind = match e {
-            lynk_core::Error::Password => "password",
-            lynk_core::Error::Cancelled => "cancelled",
+            winsar_core::Error::Password => "password",
+            winsar_core::Error::Cancelled => "cancelled",
             _ => "error",
         };
         Self { kind, message: e.to_string() }
@@ -41,7 +41,7 @@ impl From<lynk_core::Error> for CmdError {
 pub type CmdResult<T> = Result<T, CmdError>;
 
 /// Le moteur est synchrone : chaque opération part sur un thread dédié.
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> lynk_core::Result<T> + Send + 'static) -> CmdResult<T> {
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> winsar_core::Result<T> + Send + 'static) -> CmdResult<T> {
     tauri::async_runtime::spawn_blocking(f).await.map_err(|e| CmdError::other(e.to_string()))?.map_err(Into::into)
 }
 
@@ -93,8 +93,8 @@ pub async fn open_archive(path: String, password: Option<String>) -> CmdResult<A
     blocking(move || {
         let p = PathBuf::from(&path);
         let format = Format::detect(&p)?;
-        let entries = lynk_core::list(&p, password.as_deref())?;
-        let volumes = lynk_core::volumes(&p);
+        let entries = winsar_core::list(&p, password.as_deref())?;
+        let volumes = winsar_core::volumes(&p);
         let mut size = 0;
         for v in &volumes {
             size += std::fs::metadata(v)?.len();
@@ -148,15 +148,15 @@ pub async fn extract(app: AppHandle, jobs: State<'_, Jobs>, req: ExtractRequest)
         let opts = ExtractOptions { password: req.password, overwrite: req.overwrite, selection: req.selection };
         let beside = archive.parent().unwrap_or(Path::new(".")).to_path_buf();
         let dest = req.dest.map(PathBuf::from);
-        let missing = || lynk_core::Error::Unsupported("destination manquante");
+        let missing = || winsar_core::Error::Unsupported("destination manquante");
         let report = match req.mode {
-            ExtractMode::Here => lynk_core::extract_smart(&archive, &opts, &progress),
-            ExtractMode::Into => lynk_core::extract_smart_in(&archive, &dest.ok_or_else(missing)?, &opts, &progress),
+            ExtractMode::Here => winsar_core::extract_smart(&archive, &opts, &progress),
+            ExtractMode::Into => winsar_core::extract_smart_in(&archive, &dest.ok_or_else(missing)?, &opts, &progress),
             ExtractMode::Named => {
-                let target = lynk_core::named_destination(&archive, &dest.unwrap_or(beside));
-                lynk_core::extract(&archive, &target, &opts, &progress)
+                let target = winsar_core::named_destination(&archive, &dest.unwrap_or(beside));
+                winsar_core::extract(&archive, &target, &opts, &progress)
             }
-            ExtractMode::Exact => lynk_core::extract(&archive, &dest.ok_or_else(missing)?, &opts, &progress),
+            ExtractMode::Exact => winsar_core::extract(&archive, &dest.ok_or_else(missing)?, &opts, &progress),
         };
         progress.flush();
         report
@@ -202,7 +202,7 @@ pub async fn create(app: AppHandle, jobs: State<'_, Jobs>, req: CreateRequest) -
             password: req.password.filter(|p| !p.is_empty()),
             volume_size: req.volume_size.filter(|&s| s > 0),
         };
-        let parts = lynk_core::create(&sources, &dest, &opts, &progress)?;
+        let parts = winsar_core::create(&sources, &dest, &opts, &progress)?;
         progress.flush();
         created(&parts)
     })
@@ -232,7 +232,7 @@ pub async fn convert(app: AppHandle, jobs: State<'_, Jobs>, req: ConvertRequest)
     let cancel = jobs.start(job);
     let result = blocking(move || {
         let progress = JobProgress::new(app, job, cancel);
-        let opts = lynk_core::ConvertOptions {
+        let opts = winsar_core::ConvertOptions {
             password: req.password,
             create: CreateOptions {
                 format: req.format,
@@ -241,7 +241,7 @@ pub async fn convert(app: AppHandle, jobs: State<'_, Jobs>, req: ConvertRequest)
                 volume_size: req.volume_size.filter(|&s| s > 0),
             },
         };
-        let parts = lynk_core::convert(Path::new(&req.archive), Path::new(&req.dest), &opts, &progress)?;
+        let parts = winsar_core::convert(Path::new(&req.archive), Path::new(&req.dest), &opts, &progress)?;
         progress.flush();
         created(&parts)
     })
@@ -250,7 +250,7 @@ pub async fn convert(app: AppHandle, jobs: State<'_, Jobs>, req: ConvertRequest)
     result
 }
 
-fn created(parts: &[PathBuf]) -> lynk_core::Result<Created> {
+fn created(parts: &[PathBuf]) -> winsar_core::Result<Created> {
     let mut size = 0;
     for p in parts {
         size += std::fs::metadata(p)?.len();
@@ -268,12 +268,16 @@ pub struct TestRequest {
 }
 
 #[tauri::command]
-pub async fn test_archive(app: AppHandle, jobs: State<'_, Jobs>, req: TestRequest) -> CmdResult<lynk_core::TestReport> {
+pub async fn test_archive(
+    app: AppHandle,
+    jobs: State<'_, Jobs>,
+    req: TestRequest,
+) -> CmdResult<winsar_core::TestReport> {
     let job = req.job;
     let cancel = jobs.start(job);
     let result = blocking(move || {
         let progress = JobProgress::new(app, job, cancel);
-        let report = lynk_core::test(Path::new(&req.archive), req.password.as_deref(), &progress);
+        let report = winsar_core::test(Path::new(&req.archive), req.password.as_deref(), &progress);
         progress.flush();
         report
     })
@@ -305,7 +309,7 @@ pub fn cancel(jobs: State<'_, Jobs>, job: u32) {
 #[tauri::command]
 pub fn suggest_archive_path(sources: Vec<String>, format: Format, dir: Option<String>) -> String {
     let sources: Vec<PathBuf> = sources.iter().map(PathBuf::from).collect();
-    let path = lynk_core::default_archive_path(&sources, format);
+    let path = winsar_core::default_archive_path(&sources, format);
     let Some(dir) = dir.map(PathBuf::from) else {
         return path.to_string_lossy().into_owned();
     };
@@ -326,7 +330,7 @@ pub fn suggest_archive_path(sources: Vec<String>, format: Format, dir: Option<St
 }
 
 fn scratch_root() -> PathBuf {
-    std::env::temp_dir().join("Lynk")
+    std::env::temp_dir().join("WinSAR")
 }
 
 /// Dossier temporaire neuf pour une ouverture ou un glisser-déposer.
@@ -355,8 +359,8 @@ fn materialize(
     archive: &Path,
     items: &[String],
     password: Option<String>,
-    progress: &dyn lynk_core::Progress,
-) -> lynk_core::Result<Vec<PathBuf>> {
+    progress: &dyn winsar_core::Progress,
+) -> winsar_core::Result<Vec<PathBuf>> {
     let dir = scratch_dir();
     let mut groups: HashMap<String, Vec<String>> = HashMap::new();
     for item in items {
@@ -369,11 +373,11 @@ fn materialize(
             overwrite: Overwrite::Replace,
             selection: Some(Selection { base, items }),
         };
-        lynk_core::extract(archive, &dir, &opts, progress)?;
+        winsar_core::extract(archive, &dir, &opts, progress)?;
     }
     Ok(items
         .iter()
-        .filter_map(|i| lynk_core::safe_relative(i.trim_matches('/').rsplit('/').next().unwrap_or(i)))
+        .filter_map(|i| winsar_core::safe_relative(i.trim_matches('/').rsplit('/').next().unwrap_or(i)))
         .map(|rel| dir.join(rel))
         .filter(|p| p.exists())
         .collect())
@@ -414,8 +418,8 @@ pub async fn materialize_entries(
 #[tauri::command]
 pub async fn open_entry(archive: String, entry: String, password: Option<String>) -> CmdResult<()> {
     let file = blocking(move || {
-        let files = materialize(Path::new(&archive), &[entry], password, &lynk_core::NoProgress)?;
-        files.into_iter().next().ok_or(lynk_core::Error::Unsupported("nom de fichier invalide"))
+        let files = materialize(Path::new(&archive), &[entry], password, &winsar_core::NoProgress)?;
+        files.into_iter().next().ok_or(winsar_core::Error::Unsupported("nom de fichier invalide"))
     })
     .await?;
     tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| CmdError::other(e.to_string()))
@@ -443,11 +447,11 @@ pub async fn update(app: AppHandle, jobs: State<'_, Jobs>, req: UpdateRequest) -
     let result = blocking(move || {
         let progress = JobProgress::new(app, job, cancel);
         let add: Vec<PathBuf> = req.add.iter().map(PathBuf::from).collect();
-        let opts = lynk_core::UpdateOptions {
+        let opts = winsar_core::UpdateOptions {
             password: req.password.filter(|p| !p.is_empty()),
             level: req.level.unwrap_or(6),
         };
-        lynk_core::update(Path::new(&req.archive), &req.base, &add, &req.remove, &opts, &progress)?;
+        winsar_core::update(Path::new(&req.archive), &req.base, &add, &req.remove, &opts, &progress)?;
         progress.flush();
         Ok(())
     })
@@ -492,7 +496,7 @@ pub async fn drag_out(
     items: Vec<String>,
     password: Option<String>,
 ) -> CmdResult<bool> {
-    let files = blocking(move || materialize(Path::new(&archive), &items, password, &lynk_core::NoProgress)).await?;
+    let files = blocking(move || materialize(Path::new(&archive), &items, password, &winsar_core::NoProgress)).await?;
     drag_native(window, files).await
 }
 
@@ -557,6 +561,8 @@ pub fn open_path(path: String) -> CmdResult<()> {
 pub struct Accent {
     light: String,
     dark: String,
+    /// Couleur choisie dans Paramètres › Personnalisation, avant déclinaison.
+    base: String,
 }
 
 /// Couleur d'accentuation de Windows, déclinée comme le fait le système :
@@ -575,7 +581,7 @@ pub fn system_accent() -> Option<Accent> {
             let c = palette.get(i * 4..i * 4 + 3)?;
             Some(format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]))
         };
-        Some(Accent { light: color(4)?, dark: color(1)? })
+        Some(Accent { light: color(4)?, dark: color(1)?, base: color(3)? })
     }
     #[cfg(not(windows))]
     {

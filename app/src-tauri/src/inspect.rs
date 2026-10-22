@@ -7,10 +7,10 @@ use std::{
 };
 
 use base64::Engine;
-use lynk_core::Progress;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, State};
+use winsar_core::Progress;
 
 use crate::{
     commands::{CmdError, CmdResult},
@@ -99,7 +99,7 @@ pub struct FileHash {
     sha256: String,
 }
 
-fn hash_file(path: &Path, progress: &dyn Progress) -> lynk_core::Result<FileHash> {
+fn hash_file(path: &Path, progress: &dyn Progress) -> winsar_core::Result<FileHash> {
     progress.entry(&path.file_name().unwrap_or_default().to_string_lossy());
     let mut file = File::open(path)?;
     let mut crc = crc32fast::Hasher::new();
@@ -108,7 +108,7 @@ fn hash_file(path: &Path, progress: &dyn Progress) -> lynk_core::Result<FileHash
     let mut size = 0;
     loop {
         if progress.is_cancelled() {
-            return Err(lynk_core::Error::Cancelled);
+            return Err(winsar_core::Error::Cancelled);
         }
         let n = file.read(&mut buf)?;
         if n == 0 {
@@ -142,7 +142,7 @@ pub async fn hash_files(app: AppHandle, jobs: State<'_, Jobs>, req: HashRequest)
         let progress = JobProgress::new(app, job, cancel);
         let files: Vec<&Path> = req.paths.iter().map(Path::new).filter(|p| p.is_file()).collect();
         progress.total(files.iter().filter_map(|p| p.metadata().ok()).map(|m| m.len()).sum());
-        let hashes = files.into_iter().map(|p| hash_file(p, &progress)).collect::<lynk_core::Result<Vec<_>>>();
+        let hashes = files.into_iter().map(|p| hash_file(p, &progress)).collect::<winsar_core::Result<Vec<_>>>();
         progress.flush();
         hashes
     })
@@ -167,11 +167,11 @@ mod tests {
 
     #[test]
     fn known_hashes() {
-        let dir = std::env::temp_dir().join(format!("lynk-hash-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("winsar-hash-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("abc.txt");
         std::fs::write(&file, "abc").unwrap();
-        let h = hash_file(&file, &lynk_core::NoProgress).unwrap();
+        let h = hash_file(&file, &winsar_core::NoProgress).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(h.crc32, "352441c2");
         assert_eq!(h.sha256, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");

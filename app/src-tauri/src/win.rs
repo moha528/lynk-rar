@@ -249,7 +249,7 @@ pub fn drives() -> Vec<(PathBuf, Option<u64>, Option<u64>)> {
 }
 
 /// Inscrit l'archive dans les documents récents : elle apparaît dans la liste de
-/// raccourcis de Lynk (clic droit sur la barre des tâches) dès que l'installeur a
+/// raccourcis de WinSAR (clic droit sur la barre des tâches) dès que l'installeur a
 /// associé le type de fichier à l'application.
 pub fn add_to_recent_docs(path: &str) {
     let wide = HSTRING::from(path);
@@ -272,14 +272,14 @@ fn file_url(path: &std::path::Path) -> String {
     url
 }
 
-/// Identifiant d'application des notifications. L'installeur pose `dev.lynk.app` sur le
+/// Identifiant d'application des notifications. L'installeur pose `dev.winsar.app` sur le
 /// raccourci du menu Démarrer ; hors installation, Windows n'afficherait rien avec cet
 /// identifiant, on emprunte alors celui de PowerShell (pratique courante en développement).
 fn toast_app_id() -> &'static str {
     if cfg!(debug_assertions) {
         r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
     } else {
-        "dev.lynk.app"
+        "dev.winsar.app"
     }
 }
 
@@ -381,7 +381,7 @@ mod tests {
                 let reader = decoder.read_info().unwrap();
                 let info = reader.info();
                 assert!(info.width >= 16 && info.width == info.height, "{key:?} : {}x{}", info.width, info.height);
-                if let Some(dir) = std::env::var_os("LYNK_DUMP_ICONS") {
+                if let Some(dir) = std::env::var_os("WINSAR_DUMP_ICONS") {
                     let name = if key == "/" { "dossier".to_owned() } else { format!("type{key}") };
                     std::fs::write(std::path::Path::new(&dir).join(format!("{name}.png")), type_icon_png(key).unwrap())
                         .unwrap();

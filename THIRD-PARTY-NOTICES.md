@@ -1,6 +1,6 @@
 # Composants tiers
 
-Le code de Lynk est sous licence MIT (voir [LICENSE](LICENSE)). Lynk s'appuie sur des bibliothèques tierces, chacune sous sa propre licence.
+Le code de WinSAR est sous licence MIT (voir [LICENSE](LICENSE)). WinSAR s'appuie sur des bibliothèques tierces, chacune sous sa propre licence.
 
 ## UnRAR (extraction des archives RAR)
 
@@ -8,7 +8,7 @@ L'extraction RAR utilise le code source UnRAR d'Alexander Roshal, intégré par 
 
 > UnRAR source code may be used in any software to handle RAR archives without limitations free of charge, but cannot be used to develop RAR (WinRAR) compatible archiver and to re-create RAR compression algorithm, which is proprietary. Distribution of modified UnRAR source code in separate form or as a part of other software is permitted, provided that full text of this paragraph, starting from "UnRAR source code" words, is included in license, or in documentation if license is not available, and in source code comments of resulting package.
 
-Conséquence pour Lynk et ses forks : Lynk lit les archives RAR, mais n'en crée pas, et ne doit pas en créer. Le texte complet de la licence UnRAR accompagne les sources de `unrar_sys` (`vendor/unrar/license.txt`).
+Conséquence pour WinSAR et ses forks : WinSAR lit les archives RAR, mais n'en crée pas, et ne doit pas en créer. Le texte complet de la licence UnRAR accompagne les sources de `unrar_sys` (`vendor/unrar/license.txt`).
 
 ## Bibliothèques Rust
 
@@ -33,4 +33,5 @@ cargo license --avoid-dev-deps
 ## Interface
 
 - [Vite](https://vitejs.dev), [TypeScript](https://www.typescriptlang.org) : outils de construction (MIT, Apache-2.0).
-- Les icônes de l'interface viennent de la police **Segoe Fluent Icons** de Windows et de la liste d'images système. Elles ne sont pas redistribuées par Lynk.
+- Les icônes de l'interface viennent de la police **Segoe Fluent Icons** de Windows et de la liste d'images système. Elles ne sont pas redistribuées par WinSAR.
+- Le logo de WinSAR (`branding/`) contient des lettres de la police **Inter** de Rasmus Andersson, converties en tracés. Licence : [SIL Open Font License 1.1](https://openfontlicense.org).

@@ -1,4 +1,4 @@
-/* Lynk : jetons Fluent (Windows 11). Fond transparent pour laisser passer Mica. */
+/* WinSAR : jetons Fluent (Windows 11). Fond transparent pour laisser passer Mica. */
 
 :root {
   color-scheme: light;
@@ -363,6 +363,27 @@ input[type="checkbox"] {
 
 .seg:hover {
   background: var(--hover);
+}
+
+.seg:has(.swatch) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--stroke-strong);
+}
+
+.swatch-winsar {
+  background: var(--swatch-winsar);
+}
+
+.swatch-windows {
+  background: var(--swatch-windows);
 }
 
 .seg.on {
@@ -1094,9 +1115,20 @@ body.drag-out * {
   background: var(--card);
 }
 
+/* Carte verticale : une grille à la hauteur de son contenu. En flex colonne, la base
+   « 260px » du texte devenait une hauteur, et les grilles étiraient leurs lignes. */
 .setting.column {
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.setting.column > .setting-text {
+  flex: none;
+}
+
+.setting.column > .row {
+  flex-wrap: wrap;
 }
 
 .setting-text {
@@ -1142,6 +1174,7 @@ body.drag-out * {
 
 .filetypes {
   display: grid;
+  align-content: start;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 6px;
 }
@@ -1169,6 +1202,7 @@ body.drag-out * {
 
 .menu-entries {
   display: grid;
+  align-content: start;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 6px 16px;
 }

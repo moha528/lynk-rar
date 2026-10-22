@@ -1,0 +1,20 @@
+[package]
+name = "winsar-cli"
+description = "WinSAR en ligne de commande"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "winsar"
+path = "src/main.rs"
+
+[dependencies]
+winsar-core.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.18"
+rpassword = "7"

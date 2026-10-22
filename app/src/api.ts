@@ -174,7 +174,7 @@ export const api = {
   properties: (path: string) => invoke<void>("properties", { path }),
   /** Aperçu rapide d'un fichier du disque. */
   peek: (path: string) => invoke<Peek>("peek", { path }),
-  accent: () => invoke<{ light: string; dark: string } | null>("system_accent"),
+  accent: () => invoke<{ light: string; dark: string; base: string } | null>("system_accent"),
   /** Icônes système par type : `.pdf`, `""` (sans extension), `/` (dossier). */
   fileIcons: (keys: string[]) => invoke<Record<string, string>>("file_icons", { keys }),
   /** Glisser-déposer natif vers l'Explorateur ; `true` si les fichiers ont été déposés. */

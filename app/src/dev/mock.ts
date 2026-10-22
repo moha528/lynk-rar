@@ -17,7 +17,7 @@ function entries(path: string) {
     return [
       { name: "Cybersécurité.rar", path: `${dl}\\Cybersécurité.rar`, isDir: false, size: 380_000_000, modified: now - 3600, hidden: false },
       { name: "photos-vacances.zip", path: `${dl}\\photos-vacances.zip`, isDir: false, size: 1_240_000_000, modified: now - 86400 * 3, hidden: false },
-      { name: "Lynk Rar", path: `${dl}\\Lynk Rar`, isDir: true, size: 0, modified: now - 600, hidden: false },
+      { name: "WinSAR Rar", path: `${dl}\\WinSAR Rar`, isDir: true, size: 0, modified: now - 600, hidden: false },
       { name: "Wifi Hacking - Le Guide Complet.pdf", path: `${dl}\\Wifi Hacking - Le Guide Complet.pdf`, isDir: false, size: 255_000, modified: now - 86400 * 700, hidden: false },
       { name: "setup.exe", path: `${dl}\\setup.exe`, isDir: false, size: 48_000_000, modified: now - 86400 * 20, hidden: false },
       { name: "desktop.ini", path: `${dl}\\desktop.ini`, isDir: false, size: 282, modified: now - 86400 * 900, hidden: true },
@@ -57,7 +57,7 @@ const archive = {
 };
 
 const nested = {
-  path: "C:\\Users\\demo\\AppData\\Local\\Temp\\Lynk\\42-0\\Outils.zip",
+  path: "C:\\Users\\demo\\AppData\\Local\\Temp\\WinSAR\\42-0\\Outils.zip",
   name: "Outils.zip",
   format: "zip",
   formatLabel: "ZIP",
@@ -73,7 +73,7 @@ const nested = {
   })),
 };
 
-const temp = "C:\\Users\\demo\\AppData\\Local\\Temp\\Lynk\\42-0";
+const temp = "C:\\Users\\demo\\AppData\\Local\\Temp\\WinSAR\\42-0";
 const logo = "data:image/svg+xml;base64," + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#4F46E5"/><rect x="18" y="18" width="28" height="28" rx="6" fill="#C7C3FF"/></svg>');
 
 mockWindows("main");

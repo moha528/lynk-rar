@@ -87,5 +87,5 @@ fn main() {
             settings::open_url,
         ])
         .run(tauri::generate_context!())
-        .expect("échec du démarrage de Lynk");
+        .expect("échec du démarrage de WinSAR");
 }

@@ -1,4 +1,4 @@
-//! Navigation dans le système de fichiers : Lynk est un explorateur à part entière,
+//! Navigation dans le système de fichiers : WinSAR est un explorateur à part entière,
 //! les archives n'en sont qu'un type de dossier de plus.
 
 use std::{collections::HashMap, path::PathBuf, time::UNIX_EPOCH};

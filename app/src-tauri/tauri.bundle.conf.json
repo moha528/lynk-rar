@@ -5,9 +5,9 @@
   },
   "bundle": {
     "resources": {
-      "../../target/release/lynk_shell.dll": "lynk_shell.dll",
-      "../../target/release/lynk_preview.dll": "lynk_preview.dll",
-      "../../target/Lynk.msix": "Lynk.msix"
+      "../../target/release/winsar_shell.dll": "winsar_shell.dll",
+      "../../target/release/winsar_preview.dll": "winsar_preview.dll",
+      "../../target/WinSAR.msix": "WinSAR.msix"
     },
     "windows": {
       "nsis": {

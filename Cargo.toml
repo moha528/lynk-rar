@@ -1,16 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["crates/lynk-core", "crates/lynk-cli", "crates/lynk-shell", "crates/lynk-preview", "app/src-tauri"]
+members = ["crates/winsar-core", "crates/winsar-cli", "crates/winsar-shell", "crates/winsar-preview", "app/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/moha528/lynk-rar"
-homepage = "https://github.com/moha528/lynk-rar"
+repository = "https://github.com/moha528/winsar"
+homepage = "https://github.com/moha528/winsar"
 
 [workspace.dependencies]
-lynk-core = { path = "crates/lynk-core" }
+winsar-core = { path = "crates/winsar-core" }
 anyhow = "1"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
@@ -22,5 +22,5 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
-# Pas de panic = "abort" : lynk-shell tourne dans explorer.exe et doit pouvoir
+# Pas de panic = "abort" : winsar-shell tourne dans explorer.exe et doit pouvoir
 # rattraper une panique (catch_unwind) au lieu de faire tomber l'Explorateur.

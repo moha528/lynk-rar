@@ -1,11 +1,11 @@
 // Nouvelles versions : lecture publique de la dernière version publiée sur GitHub.
-// Rien n'est envoyé, rien n'est téléchargé : Lynk prévient, l'utilisateur décide.
+// Rien n'est envoyé, rien n'est téléchargé : WinSAR prévient, l'utilisateur décide.
 
 import { getVersion } from "@tauri-apps/api/app";
 
 import { settings, updateSettings } from "./settings";
 
-export const REPO = "moha528/lynk-rar";
+export const REPO = "moha528/winsar";
 export const REPO_URL = `https://github.com/${REPO}`;
 
 const DAY = 24 * 3600 * 1000;

@@ -36,15 +36,15 @@ pub fn settings_save(app: AppHandle, value: serde_json::Value) -> CmdResult<()> 
     std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, &file)).map_err(|e| CmdError::other(e.to_string()))
 }
 
-/// Entrées masquées du menu contextuel, lues par lynk_shell.dll à chaque affichage.
-/// Bit n : n-ième entrée de `lynk_shell::verbs::Verb::ALL`.
+/// Entrées masquées du menu contextuel, lues par winsar_shell.dll à chaque affichage.
+/// Bit n : n-ième entrée de `winsar_shell::verbs::Verb::ALL`.
 #[tauri::command]
 pub fn set_context_menu_hidden(mask: u32) -> CmdResult<()> {
     #[cfg(windows)]
     {
         use winreg::{RegKey, enums::HKEY_CURRENT_USER};
         let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
-            .create_subkey(r"Software\Lynk")
+            .create_subkey(r"Software\WinSAR")
             .map_err(|e| CmdError::other(e.to_string()))?;
         key.set_value("ContextMenuHidden", &mask).map_err(|e| CmdError::other(e.to_string()))?;
     }
@@ -54,16 +54,16 @@ pub fn set_context_menu_hidden(mask: u32) -> CmdResult<()> {
 }
 
 #[cfg(windows)]
-const PROGID: &str = "Lynk.Archive";
+const PROGID: &str = "WinSAR.Archive";
 #[cfg(windows)]
-const CAPABILITIES: &str = r"Software\Lynk\Capabilities";
+const CAPABILITIES: &str = r"Software\WinSAR\Capabilities";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileTypeStatus {
-    /// Lynk est proposé pour ce type (« Ouvrir avec », paramètres de Windows).
+    /// WinSAR est proposé pour ce type (« Ouvrir avec », paramètres de Windows).
     registered: bool,
-    /// Lynk est l'application par défaut, choisie par l'utilisateur.
+    /// WinSAR est l'application par défaut, choisie par l'utilisateur.
     default: bool,
     /// Application par défaut actuelle (ProgID), pour information.
     current: Option<String>,
@@ -91,7 +91,7 @@ pub fn file_types_status(exts: Vec<String>) -> HashMap<String, FileTypeStatus> {
     }
 }
 
-/// Déclare (ou retire) Lynk comme application capable d'ouvrir ces extensions.
+/// Déclare (ou retire) WinSAR comme application capable d'ouvrir ces extensions.
 /// Windows interdit à une application de se rendre elle-même « par défaut » :
 /// l'utilisateur confirme ensuite dans Paramètres (voir `open_default_apps`).
 #[tauri::command]
@@ -117,12 +117,12 @@ pub fn register_file_types(exts: Vec<String>, enable: bool) -> CmdResult<()> {
         cmd.set_value("", &format!("\"{exe}\" \"%1\"")).map_err(err)?;
 
         let (caps, _) = hkcu.create_subkey(CAPABILITIES).map_err(err)?;
-        caps.set_value("ApplicationName", &"Lynk").map_err(err)?;
+        caps.set_value("ApplicationName", &"WinSAR").map_err(err)?;
         caps.set_value("ApplicationDescription", &"Archives rapides, intégrées à l'Explorateur").map_err(err)?;
         caps.set_value("ApplicationIcon", &format!("{exe},0")).map_err(err)?;
         let (assoc, _) = caps.create_subkey("FileAssociations").map_err(err)?;
         let (apps, _) = hkcu.create_subkey(r"Software\RegisteredApplications").map_err(err)?;
-        apps.set_value("Lynk", &CAPABILITIES).map_err(err)?;
+        apps.set_value("WinSAR", &CAPABILITIES).map_err(err)?;
 
         for ext in &exts {
             let (open_with, _) = hkcu.create_subkey(format!(r"Software\Classes\{ext}\OpenWithProgids")).map_err(err)?;
@@ -146,9 +146,9 @@ pub fn register_file_types(exts: Vec<String>, enable: bool) -> CmdResult<()> {
 const ARCHIVE_EXTS: &[&str] =
     &[".zip", ".jar", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".tbz2", ".xz", ".txz", ".zst", ".tzst", ".001"];
 #[cfg(windows)]
-const CLASSIC_ARCHIVE_VERB: &str = "Lynk.Archive";
+const CLASSIC_ARCHIVE_VERB: &str = "WinSAR.Archive";
 #[cfg(windows)]
-const CLASSIC_COMPRESS_VERB: &str = "Lynk.Compress";
+const CLASSIC_COMPRESS_VERB: &str = "WinSAR.Compress";
 
 /// Menu contextuel classique (« Afficher plus d'options ») : de simples verbes de
 /// registre, sans DLL ni package signé. C'est le repli de l'installeur quand le
@@ -184,19 +184,19 @@ pub fn set_classic_menu(enable: bool) -> std::io::Result<()> {
         for key in &archive_keys {
             menu(
                 key,
-                "Lynk",
+                "WinSAR",
                 &[
                     ("1here", "Extraire ici", "--extract-here"),
                     ("2named", "Extraire dans un dossier à son nom", "--extract-named"),
                     ("3to", "Extraire vers…", "--extract-to"),
-                    ("4open", "Ouvrir avec Lynk", ""),
+                    ("4open", "Ouvrir avec WinSAR", ""),
                 ],
             )?;
         }
         for key in &compress_keys {
             menu(
                 key,
-                "Compresser avec Lynk",
+                "Compresser avec WinSAR",
                 &[
                     ("1zip", "Ajouter à une archive ZIP", "--compress zip"),
                     ("27z", "Ajouter à une archive 7z", "--compress 7z"),
@@ -231,10 +231,10 @@ pub fn set_classic_menu_enabled(enable: bool) -> CmdResult<()> {
     Ok(())
 }
 
-/// Page « Applications par défaut » de Windows, directement sur Lynk.
+/// Page « Applications par défaut » de Windows, directement sur WinSAR.
 #[tauri::command]
 pub fn open_default_apps() -> CmdResult<()> {
-    tauri_plugin_opener::open_url("ms-settings:defaultapps?registeredAppUser=Lynk", None::<&str>)
+    tauri_plugin_opener::open_url("ms-settings:defaultapps?registeredAppUser=WinSAR", None::<&str>)
         .map_err(|e| CmdError::other(e.to_string()))
 }
 

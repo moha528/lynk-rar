@@ -1,12 +1,12 @@
 # Journal des modifications
 
-Les changements notables de Lynk. Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et les versions [Semantic Versioning](https://semver.org/lang/fr/).
+Les changements notables de WinSAR. Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et les versions [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
 ## [0.1.0] - 2026-10-21
 
-Première préversion publique.
+Première préversion publique. Le projet s'appelait Lynk pendant son développement.
 
 ### Archives
 
@@ -38,8 +38,8 @@ Première préversion publique.
 
 ### Outils
 
-- CLI `lynk` : `list`, `extract`, `create`, `convert`, `test`, `formats`.
+- CLI `winsar` : `list`, `extract`, `create`, `convert`, `test`, `formats`.
 - Publication automatisée : un tag `v*` fabrique l'installeur et le CLI et prépare une version en brouillon.
 
-[Non publié]: https://github.com/moha528/lynk-rar/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/moha528/lynk-rar/releases/tag/v0.1.0
+[Non publié]: https://github.com/moha528/winsar/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/moha528/winsar/releases/tag/v0.1.0

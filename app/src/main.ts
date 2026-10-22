@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { api } from "./api";
 import { startExplorer } from "./explorer";
-import { applyAppearance, loadSettings } from "./settings";
+import { applyAppearance, loadSettings, setSystemAccent } from "./settings";
 import { runTask } from "./task";
 
 async function main(): Promise<void> {
@@ -13,10 +13,7 @@ async function main(): Promise<void> {
   });
 
   const [accent, s, launch] = await Promise.all([api.accent().catch(() => null), loadSettings(), api.launch()]);
-  if (accent) {
-    document.documentElement.style.setProperty("--accent-light", accent.light);
-    document.documentElement.style.setProperty("--accent-dark", accent.dark);
-  }
+  setSystemAccent(accent?.base ?? null);
   await applyAppearance(s);
   // Le registre (lu par le menu contextuel) suit toujours les réglages.
   void api.setContextMenuHidden(s.menuHidden).catch(() => {});

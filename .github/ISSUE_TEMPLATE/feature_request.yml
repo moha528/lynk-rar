@@ -1,5 +1,5 @@
 name: Proposer une amélioration
-description: Une idée pour rendre Lynk plus pratique.
+description: Une idée pour rendre WinSAR plus pratique.
 labels: [amélioration]
 body:
   - type: textarea

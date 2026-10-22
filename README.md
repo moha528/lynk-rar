@@ -1,18 +1,18 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="branding/logo/lynk-lockup-horizontal-on-dark.svg">
-  <img src="branding/logo/lynk-lockup-horizontal.svg" width="300" alt="Lynk">
+  <source media="(prefers-color-scheme: dark)" srcset="branding/logo/winsar-lockup-horizontal-on-dark.svg">
+  <img src="branding/logo/winsar-lockup-horizontal.svg" width="300" alt="WinSAR">
 </picture>
 
 **Un gestionnaire d'archives libre pour Windows 11, écrit en Rust, qui s'intègre vraiment à l'Explorateur.**
 
-[![CI](https://github.com/moha528/lynk-rar/actions/workflows/ci.yml/badge.svg)](https://github.com/moha528/lynk-rar/actions/workflows/ci.yml)
+[![CI](https://github.com/moha528/winsar/actions/workflows/ci.yml/badge.svg)](https://github.com/moha528/winsar/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
 </div>
 
-Lynk remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fichiers où une archive s'ouvre comme un dossier. Il apporte un menu contextuel natif de Windows 11, un aperçu dans le volet de l'Explorateur, et une interface Fluent avec l'effet Mica.
+WinSAR remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fichiers où une archive s'ouvre comme un dossier. Il apporte un menu contextuel natif de Windows 11, un aperçu dans le volet de l'Explorateur, et une interface Fluent avec l'effet Mica.
 
 ## Fonctionnalités
 
@@ -34,14 +34,14 @@ Lynk remplace WinRAR et 7-Zip pour l'usage quotidien. C'est un explorateur de fi
   - notifications natives ;
   - icônes du système, thème clair ou sombre, couleur d'accent.
 - **Liste rapide** : affichage virtualisé (des dizaines de milliers de fichiers), colonnes redimensionnables, interface qui s'adapte à toutes les largeurs de fenêtre.
-- **Mises à jour** : Lynk signale les nouvelles versions publiées sur GitHub, sans rien installer sans vous.
-- **CLI** : `lynk list | extract | create | convert | test`.
+- **Mises à jour** : WinSAR signale les nouvelles versions publiées sur GitHub, sans rien installer sans vous.
+- **CLI** : `winsar list | extract | create | convert | test`.
 
 ## Installation
 
-Téléchargez l'installeur dans les [Releases](https://github.com/moha528/lynk-rar/releases). Chaque version liste ses changements dans le [journal des modifications](CHANGELOG.md) et donne les sommes SHA-256 de ses fichiers.
+Téléchargez l'installeur dans les [Releases](https://github.com/moha528/winsar/releases). Chaque version liste ses changements dans le [journal des modifications](CHANGELOG.md) et donne les sommes SHA-256 de ses fichiers.
 
-> **Versions non signées.** Lynk n'a pas encore de certificat de signature de code. Windows SmartScreen peut donc afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Vérifiez au besoin l'installeur avec `SHA256SUMS.txt`.
+> **Versions non signées.** WinSAR n'a pas encore de certificat de signature de code. Windows SmartScreen peut donc afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Vérifiez au besoin l'installeur avec `SHA256SUMS.txt`.
 >
 > Pour la même raison, le menu principal de Windows 11 et l'aperçu dans l'Explorateur ne s'installent pas : l'installeur pose à la place un menu classique, dans « Afficher plus d'options » (Maj+F10). Voir [packaging/README.md](packaging/README.md).
 
@@ -82,17 +82,17 @@ cargo test --workspace
 Le CLI :
 
 ```bash
-cargo run -p lynk-cli -- extract archive.7z
+cargo run -p winsar-cli -- extract archive.7z
 ```
 
 ## Organisation du dépôt
 
 | Dossier | Contenu |
 |---|---|
-| `crates/lynk-core` | Moteur d'archives : formats, extraction sûre, création, modification, volumes, test |
-| `crates/lynk-cli` | Binaire `lynk` |
-| `crates/lynk-shell` | DLL du menu contextuel de Windows 11 (`IExplorerCommand`), chargée dans `explorer.exe` |
-| `crates/lynk-preview` | DLL d'aperçu dans le volet de l'Explorateur (`IPreviewHandler`) |
+| `crates/winsar-core` | Moteur d'archives : formats, extraction sûre, création, modification, volumes, test |
+| `crates/winsar-cli` | Binaire `winsar` |
+| `crates/winsar-shell` | DLL du menu contextuel de Windows 11 (`IExplorerCommand`), chargée dans `explorer.exe` |
+| `crates/winsar-preview` | DLL d'aperçu dans le volet de l'Explorateur (`IPreviewHandler`) |
 | `app/src-tauri` | Application Tauri 2 : commandes, intégrations Windows |
 | `app/src` | Interface (TypeScript, sans framework) |
 | `packaging` | Manifeste MSIX sparse, signature et installation de l'intégration à l'Explorateur |
@@ -104,4 +104,4 @@ Les contributions sont bienvenues : lisez [CONTRIBUTING.md](CONTRIBUTING.md). Le
 
 ## Licence
 
-Lynk est distribué sous licence [MIT](LICENSE). L'extraction RAR repose sur le code UnRAR d'Alexander Roshal, sous sa propre licence : voir [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+WinSAR est distribué sous licence [MIT](LICENSE). L'extraction RAR repose sur le code UnRAR d'Alexander Roshal, sous sa propre licence : voir [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

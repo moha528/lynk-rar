@@ -1,4 +1,4 @@
-//! Archives récentes : liste propre à Lynk (écran d'accueil) et liste de raccourcis
+//! Archives récentes : liste propre à WinSAR (écran d'accueil) et liste de raccourcis
 //! de Windows (clic droit sur l'icône de la barre des tâches, catégorie « Récent »).
 
 use std::{fs, path::PathBuf, sync::Mutex};

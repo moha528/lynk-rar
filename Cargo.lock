@@ -2308,77 +2308,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
-name = "lynk-app"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "crc32fast",
- "lynk-core",
- "png 0.18.1",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "windows",
- "windows-core",
- "winreg 0.55.0",
-]
-
-[[package]]
-name = "lynk-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "indicatif",
- "lynk-core",
- "rpassword",
- "serde_json",
-]
-
-[[package]]
-name = "lynk-core"
-version = "0.1.0"
-dependencies = [
- "bzip2",
- "chrono",
- "flate2",
- "serde",
- "sevenz-rust2",
- "tar",
- "tempfile",
- "thiserror 2.0.21",
- "unrar",
- "walkdir",
- "xz2",
- "zip",
- "zstd",
-]
-
-[[package]]
-name = "lynk-preview"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "lynk-core",
- "tempfile",
- "windows",
- "windows-core",
-]
-
-[[package]]
-name = "lynk-shell"
-version = "0.1.0"
-dependencies = [
- "windows",
- "windows-core",
-]
-
-[[package]]
 name = "lzma-rust2"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5349,6 +5278,77 @@ checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
 dependencies = [
  "cfg-if",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "winsar-app"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "crc32fast",
+ "png 0.18.1",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "windows",
+ "windows-core",
+ "winreg 0.55.0",
+ "winsar-core",
+]
+
+[[package]]
+name = "winsar-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "indicatif",
+ "rpassword",
+ "serde_json",
+ "winsar-core",
+]
+
+[[package]]
+name = "winsar-core"
+version = "0.1.0"
+dependencies = [
+ "bzip2",
+ "chrono",
+ "flate2",
+ "serde",
+ "sevenz-rust2",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.21",
+ "unrar",
+ "walkdir",
+ "xz2",
+ "zip",
+ "zstd",
+]
+
+[[package]]
+name = "winsar-preview"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "tempfile",
+ "windows",
+ "windows-core",
+ "winsar-core",
+]
+
+[[package]]
+name = "winsar-shell"
+version = "0.1.0"
+dependencies = [
+ "windows",
+ "windows-core",
 ]
 
 [[package]]
