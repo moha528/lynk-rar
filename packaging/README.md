@@ -28,6 +28,16 @@ Le manifeste n'a pas à être retouché à la main : au moment de l'empaquetage,
 2. en local, définissez `WINSAR_CERT_THUMBPRINT` avec son empreinte avant `npm run bundle` ;
 3. pour les versions fabriquées par GitHub Actions ([release.yml](../.github/workflows/release.yml)), ajoutez les secrets `WINSAR_CERT_PFX` (le `.pfx` en base64) et `WINSAR_CERT_PASSWORD` au dépôt. Sans eux, la CI signe avec un certificat jetable.
 
+## Menu principal sur votre PC avec une version non signée
+
+Une version publiée par GitHub Actions sans certificat reconnu n'obtient que le menu classique (« Afficher plus d'options »). Pour avoir l'entrée WinSAR dans le menu principal sur **votre** machine, resignez le package avec le certificat de développement et approuvez-le, ici seulement (une fenêtre UAC) :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\install-shell.ps1 -InstallDir "$env:LOCALAPPDATA\WinSAR" -RestartExplorer
+```
+
+Il faut le SDK Windows (makeappx, signtool). Le script retire ensuite le menu classique, qui ferait doublon. À refaire après chaque mise à jour de WinSAR : l'installeur réenregistre le package non signé.
+
 ## Installation de développement (sans installeur)
 
 ```powershell

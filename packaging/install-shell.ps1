@@ -11,6 +11,11 @@
 .PARAMETER Configuration
   release (par défaut) ou debug.
 
+.PARAMETER InstallDir
+  Dossier d'une installation faite par l'installeur (par exemple %LOCALAPPDATA%\WinSAR).
+  Sert à obtenir le menu principal de Windows 11 sur ce PC avec une version publiée non
+  signée : le package est resigné avec le certificat de développement, approuvé ici seulement.
+
 .PARAMETER Uninstall
   Retire le package. Le certificat reste en place pour les prochaines installations.
 
@@ -19,11 +24,15 @@
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File packaging\install-shell.ps1 -RestartExplorer
+
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File packaging\install-shell.ps1 -InstallDir "$env:LOCALAPPDATA\WinSAR" -RestartExplorer
 #>
 [CmdletBinding()]
 param(
   [ValidateSet("release", "debug")]
   [string] $Configuration = "release",
+  [string] $InstallDir,
   [switch] $Uninstall,
   [switch] $RestartExplorer
 )
@@ -54,7 +63,7 @@ if ($Uninstall) {
   return
 }
 
-$Bin = Join-Path $Root "target\$Configuration"
+$Bin = if ($InstallDir) { (Resolve-Path $InstallDir).Path } else { Join-Path $Root "target\$Configuration" }
 foreach ($file in "winsar-app.exe", "winsar_shell.dll", "winsar_preview.dll") {
   if (-not (Test-Path (Join-Path $Bin $file))) {
     throw "$file absent de $Bin. Compilez d'abord, voir packaging\README.md."
@@ -65,5 +74,7 @@ $cert = Get-WinSARCertificate
 Confirm-WinSARTrust $cert
 $msix = New-WinSARMsix $cert
 Add-AppxPackage -Path $msix -ExternalLocation $Bin
+# Le menu principal est en place : le menu classique de repli ferait doublon.
+Start-Process (Join-Path $Bin "winsar-app.exe") -ArgumentList "--unregister-classic-menu" -Wait
 if ($RestartExplorer) { Restart-Explorer }
 Write-Host "Menu contextuel WinSAR installé, binaires : $Bin"
