@@ -42,12 +42,10 @@ jobs:
         working-directory: app
         run: npm ci
 
-      # Facultatif : un certificat de signature, en secrets du dépôt (WINSAR_CERT_PFX en
-      # base64, WINSAR_CERT_PASSWORD). Reconnu par Windows, il donne l'intégration à
-      # l'Explorateur partout ; auto-signé mais toujours le même, il la donne à qui l'a
-      # approuvé une fois (sa partie publique est jointe à la version). Sans lui, le
-      # package MSIX est signé par un certificat jetable : WinSAR s'installe et marche,
-      # avec le menu classique seulement (voir packaging/README.md).
+      # Facultatif : un vrai certificat de signature de code, en secrets du dépôt
+      # (WINSAR_CERT_PFX en base64, WINSAR_CERT_PASSWORD). Sans lui, le package MSIX est
+      # signé par un certificat jetable : WinSAR s'installe et marche, mais sans
+      # l'intégration à l'Explorateur (voir packaging/README.md).
       - name: Certificat de signature
         shell: pwsh
         env:
@@ -61,9 +59,6 @@ jobs:
           $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
           Remove-Item $pfx
           "WINSAR_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
-          # Partie publique seulement, à approuver par ceux qui veulent le menu de Windows 11.
-          New-Item -ItemType Directory -Force dist-release | Out-Null
-          Export-Certificate -Cert $cert -FilePath dist-release/WinSAR-certificat.cer | Out-Null
 
       - name: Installeur (NSIS, avec l'intégration à l'Explorateur)
         working-directory: app
@@ -106,24 +101,10 @@ jobs:
 
           Téléchargez ``WinSAR_${version}_x64-setup.exe`` et lancez-le : l'installation se fait pour votre compte, sans droits d'administrateur.
 
-          L'installeur n'est pas signé par une autorité reconnue. Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Les sommes SHA-256 des fichiers sont dans ``SHA256SUMS.txt``.
+          Cette version n'est pas signée. Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : cliquez sur « Informations complémentaires », puis « Exécuter quand même ». Les sommes SHA-256 des fichiers sont dans ``SHA256SUMS.txt``.
+
+          Sans signature, l'entrée WinSAR se trouve dans « Afficher plus d'options » (Maj+F10) du menu contextuel.
           "@
-          if ($env:WINSAR_CERT_THUMBPRINT) {
-            $notes += @"
-
-          ## Menu de Windows 11 et aperçu dans l'Explorateur
-
-          L'intégration à l'Explorateur est signée par le certificat ``CN=WinSAR Dev``, auto-signé. Pour l'activer, approuvez-le une fois, **avant** d'installer (ou réinstallez ensuite) :
-
-          1. Téléchargez ``WinSAR-certificat.cer`` et double-cliquez dessus.
-          2. Vérifiez que l'empreinte (onglet Détails) est ``$($env:WINSAR_CERT_THUMBPRINT)``.
-          3. « Installer un certificat… » › **Ordinateur local** › « Placer tous les certificats dans le magasin suivant » › **Personnes autorisées** › Terminer.
-
-          Sans cette étape, WinSAR marche quand même : son entrée est alors dans « Afficher plus d'options » (Maj+F10).
-          "@
-          } else {
-            $notes += "`n`nL'entrée WinSAR se trouve dans « Afficher plus d'options » (Maj+F10) du menu contextuel.`n"
-          }
           $notesFile = Join-Path $env:RUNNER_TEMP "notes.md"
           [IO.File]::WriteAllText($notesFile, ($notes -replace '(?m)^          ', ''), [Text.UTF8Encoding]::new($false))
           gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist-release -File).FullName `

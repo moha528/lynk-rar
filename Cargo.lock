@@ -5282,7 +5282,7 @@ dependencies = [
 
 [[package]]
 name = "winsar-app"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "crc32fast",
@@ -5302,7 +5302,7 @@ dependencies = [
 
 [[package]]
 name = "winsar-cli"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5315,7 +5315,7 @@ dependencies = [
 
 [[package]]
 name = "winsar-core"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "bzip2",
  "chrono",
@@ -5334,7 +5334,7 @@ dependencies = [
 
 [[package]]
 name = "winsar-preview"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "tempfile",
@@ -5345,7 +5345,7 @@ dependencies = [
 
 [[package]]
 name = "winsar-shell"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "windows",
  "windows-core",

@@ -4,13 +4,6 @@ Les changements notables de WinSAR. Le format suit [Keep a Changelog](https://ke
 
 ## [Non publié]
 
-## [0.1.1] - 2026-10-22
-
-### Modifié
-
-- Les versions publiées signent l'intégration à l'Explorateur avec un certificat stable, `CN=WinSAR Dev`, joint à la version (`WinSAR-certificat.cer`). L'approuver une fois donne le menu principal de Windows 11 et l'aperçu dans l'Explorateur, mises à jour comprises.
-- `install-shell.ps1 -InstallDir` resigne une installation existante pour ce PC seulement.
-
 ## [0.1.0] - 2026-10-21
 
 Première préversion publique. Le projet s'appelait Lynk pendant son développement.
@@ -48,6 +41,5 @@ Première préversion publique. Le projet s'appelait Lynk pendant son développe
 - CLI `winsar` : `list`, `extract`, `create`, `convert`, `test`, `formats`.
 - Publication automatisée : un tag `v*` fabrique l'installeur et le CLI et prépare une version en brouillon.
 
-[Non publié]: https://github.com/moha528/winsar/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/moha528/winsar/compare/v0.1.0...v0.1.1
+[Non publié]: https://github.com/moha528/winsar/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/moha528/winsar/releases/tag/v0.1.0
